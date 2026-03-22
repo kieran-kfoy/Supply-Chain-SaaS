@@ -1,0 +1,175 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Tenant {
+  id                String   @id @default(cuid())
+  name              String
+  planTier          String   @default("free")
+  shopifyStoreUrl   String?
+  createdAt         DateTime @default(now())
+  users             User[]
+  skus              Sku[]
+  inventorySnapshots InventorySnapshot[]
+  purchaseOrders    PurchaseOrder[]
+  shipments         Shipment[]
+  suppliers         Supplier[]
+  integrations      Integration[]
+  alerts            Alert[]
+}
+
+model User {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  email     String   @unique
+  password  String
+  role      String   @default("operator") // 'admin' | 'operator' | 'viewer'
+  name      String
+  createdAt DateTime @default(now())
+}
+
+model Sku {
+  id                 String   @id @default(cuid())
+  tenantId           String
+  tenant             Tenant   @relation(fields: [tenantId], references: [id])
+  skuCode            String
+  productDescription String
+  barcodeUpc         String?
+  unitCost           Float
+  sellingPrice       Float
+  orderTriggerDays   Int      @default(90)
+  daysToOrderTarget  Int      @default(250)
+  moq                Int      @default(1)
+  supplierId         String
+  supplier           Supplier @relation(fields: [supplierId], references: [id])
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  snapshots          InventorySnapshot[]
+  purchaseOrders     PurchaseOrder[]
+  shipments          Shipment[]
+
+  @@unique([tenantId, skuCode])
+}
+
+model InventorySnapshot {
+  id                   String   @id @default(cuid())
+  tenantId             String
+  tenant               Tenant   @relation(fields: [tenantId], references: [id])
+  skuId                String
+  sku                  Sku      @relation(fields: [skuId], references: [id])
+  snapshotDate         DateTime @default(now())
+  onHandQuantity       Int
+  qtyOnDock            Int      @default(0)
+  qtyAllocated         Int      @default(0)
+  nonsaleableQuantity  Int      @default(0)
+  inboundQuantity      Int      @default(0)
+  shipped7Days         Int      @default(0)
+  shipped30Days        Int      @default(0)
+  shipped90Days        Int      @default(0)
+  
+  // Calculated fields
+  availableQuantity    Int
+  velocity7d           Float
+  velocity30d          Float
+  velocity90d          Float
+  daysInStock          Float
+  daysOnOrder          Float
+  totalDaysOutstanding Float
+  oosDate              DateTime?
+  daysUntilReorder     Float
+  reorderStatus        String   // 'CRITICAL' | 'REORDER_SOON' | 'MONITOR' | 'HEALTHY'
+  demandFlag           String?  // 'SPIKE' | 'SOFTENING'
+}
+
+model PurchaseOrder {
+  id               String   @id @default(cuid())
+  tenantId         String
+  tenant           Tenant   @relation(fields: [tenantId], references: [id])
+  poNumber         String
+  skuId            String
+  sku              Sku      @relation(fields: [skuId], references: [id])
+  supplierId       String
+  supplier         Supplier @relation(fields: [supplierId], references: [id])
+  orderQuantity    Int
+  dateSubmitted    DateTime
+  dateShipped      DateTime?
+  expectedArrival  DateTime?
+  status           String   @default("OPEN") // OPEN | IN PRODUCTION | SHIPPED | COMPLETE
+  packagingOrdered Boolean  @default(false)
+  notes            String?
+  createdBy        String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  shipments        Shipment[]
+}
+
+model Shipment {
+  id               String   @id @default(cuid())
+  tenantId         String
+  tenant           Tenant   @relation(fields: [tenantId], references: [id])
+  poId             String
+  po               PurchaseOrder @relation(fields: [poId], references: [id])
+  skuId            String
+  sku              Sku      @relation(fields: [skuId], references: [id])
+  unitsShipped     Int
+  shipDate         DateTime
+  asnNumber        String?
+  freightCarrier   String?
+  trackingNumber   String?
+  inboundCreated   Boolean  @default(false)
+  received         Boolean  @default(false)
+  receivedDate     DateTime?
+  discrepancyFlag  Boolean  @default(false)
+  discrepancyNotes String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model Supplier {
+  id               String   @id @default(cuid())
+  tenantId         String
+  tenant           Tenant   @relation(fields: [tenantId], references: [id])
+  name             String
+  contactName      String?
+  contactEmail     String?
+  leadTimeAvgDays  Int      @default(30)
+  productionType   String   @default("domestic") // 'domestic' | 'import'
+  shipToAddress    String?
+  paymentTerms     String?
+  notes            String?
+  skus             Sku[]
+  purchaseOrders   PurchaseOrder[]
+}
+
+model Integration {
+  id                   String   @id @default(cuid())
+  tenantId             String
+  tenant               Tenant   @relation(fields: [tenantId], references: [id])
+  integrationType      String   // 'shopify' | 'shipbob' | 'shipstation' | 'amazon'
+  credentialsEncrypted String
+  lastSyncAt           DateTime?
+  syncStatus           String?
+  errorLog             String?
+}
+
+model Alert {
+  id            String   @id @default(cuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+  alertType     String   // 'CRITICAL_SKU' | 'REORDER_SOON' | 'OVERDUE_PO' | 'DEMAND_SPIKE' | 'ASN_MISSING'
+  referenceId   String
+  referenceType String   // e.g., 'sku', 'po'
+  message       String
+  isRead        Boolean  @default(false)
+  createdAt     DateTime @default(now())
+}
