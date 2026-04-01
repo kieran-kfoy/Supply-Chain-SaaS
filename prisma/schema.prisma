@@ -25,6 +25,7 @@ model Tenant {
   suppliers         Supplier[]
   integrations      Integration[]
   alerts            Alert[]
+  channelListings   ChannelListing[]
 }
 
 model User {
@@ -58,6 +59,7 @@ model Sku {
   snapshots          InventorySnapshot[]
   purchaseOrders     PurchaseOrder[]
   shipments          Shipment[]
+  channelListings    ChannelListing[]
 
   @@unique([tenantId, skuCode])
 }
@@ -78,6 +80,9 @@ model InventorySnapshot {
   shipped30Days        Int      @default(0)
   shipped90Days        Int      @default(0)
   
+  // Which channel this snapshot came from
+  provider             String   @default("manual") // 'shopify' | 'amazon' | 'manual'
+
   // Calculated fields
   availableQuantity    Int
   velocity7d           Float
@@ -173,4 +178,25 @@ model Alert {
   message       String
   isRead        Boolean  @default(false)
   createdAt     DateTime @default(now())
+}
+
+// Maps an internal SKU to its platform-specific identifiers.
+// One SKU can have listings on multiple channels (Shopify, Amazon, etc.)
+// This allows combined and per-channel inventory views as discussed.
+model ChannelListing {
+  id                String   @id @default(cuid())
+  tenantId          String
+  tenant            Tenant   @relation(fields: [tenantId], references: [id])
+  skuId             String
+  sku               Sku      @relation(fields: [skuId], references: [id])
+  platform          String   // 'shopify' | 'amazon'
+  platformProductId String   // Shopify product ID or Amazon ASIN
+  platformVariantId String?  // Shopify variant ID (Amazon doesn't use this)
+  platformSku       String?  // SKU code as it appears on the platform (may differ)
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // One SKU can only have one listing per platform
+  @@unique([skuId, platform])
 }
