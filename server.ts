@@ -1,6 +1,5 @@
 import express from "express";
 import path from "path";
-import { createServer as createViteServer } from "vite";
 import { PrismaClient } from "@prisma/client";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
@@ -423,6 +422,7 @@ async function startServer() {
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
@@ -430,9 +430,15 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
+    console.log(`[Server] Serving static files from: ${distPath}`);
     app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
+    app.get("*", (_req, res) => {
+      res.sendFile(path.join(distPath, "index.html"), (err) => {
+        if (err) {
+          console.error("[Server] Failed to serve index.html:", err);
+          res.status(500).send("Server error");
+        }
+      });
     });
   }
 
@@ -443,4 +449,7 @@ async function startServer() {
 }
 
 
-startServer();
+startServer().catch((err) => {
+  console.error("[Server] Fatal startup error:", err);
+  process.exit(1);
+});
