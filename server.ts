@@ -440,51 +440,6 @@ async function startServer() {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 
-  // ── Auto-sync engine ────────────────────────────────────────────────────────
-  // Every 5 minutes, check all Shopify integrations and sync if due
-  const runAutoSync = async () => {
-    try {
-      const integrations = await prisma.integration.findMany({
-        where: { integrationType: 'shopify', syncStatus: { not: 'error' } },
-      });
-
-      for (const integration of integrations) {
-        const creds = JSON.parse(integration.credentialsEncrypted);
-        const cadenceHours = creds.syncCadenceHours || 24;
-        const lastSync = integration.lastSyncAt ? new Date(integration.lastSyncAt) : null;
-        const now = new Date();
-        const hoursSinceLast = lastSync
-          ? (now.getTime() - lastSync.getTime()) / (1000 * 60 * 60)
-          : Infinity;
-
-        if (hoursSinceLast >= cadenceHours) {
-          console.log(`[AutoSync] Running Shopify sync for tenant ${integration.tenantId} (cadence: ${cadenceHours}h, last sync: ${lastSync ? Math.round(hoursSinceLast) + 'h ago' : 'never'})`);
-          try {
-            // Import and run the sync logic inline via HTTP call to ourselves
-            const res = await fetch(`http://localhost:${PORT}/api/v1/shopify/sync`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'X-Internal-Sync': 'true',
-                'X-Tenant-Id': integration.tenantId,
-              },
-            });
-            const data = await res.json() as any;
-            console.log(`[AutoSync] Tenant ${integration.tenantId}: ${data?.data?.message || 'done'}`);
-          } catch (err: any) {
-            console.error(`[AutoSync] Failed for tenant ${integration.tenantId}:`, err.message);
-          }
-        }
-      }
-    } catch (err: any) {
-      console.error('[AutoSync] Engine error:', err.message);
-    }
-  };
-
-  // Check every 5 minutes
-  setInterval(runAutoSync, 5 * 60 * 1000);
-  // Also run once 30 seconds after startup
-  setTimeout(runAutoSync, 30 * 1000);
 }
 
 
