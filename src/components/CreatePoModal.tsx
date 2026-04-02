@@ -31,6 +31,16 @@ export default function CreatePoModal({ isOpen, onClose }: CreatePoModalProps) {
     }
   });
 
+  const { data: suppliers } = useQuery({
+    queryKey: ['suppliers'],
+    queryFn: async () => {
+      const res = await axios.get('/api/v1/suppliers', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      return res.data.data;
+    }
+  });
+
   const selectedSku = skus?.find((s: any) => s.id === formData.skuId);
 
   React.useEffect(() => {
@@ -106,6 +116,21 @@ export default function CreatePoModal({ isOpen, onClose }: CreatePoModalProps) {
                 ))}
               </select>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-bold uppercase tracking-widest text-white/30 ml-1">Supplier</label>
+            <select
+              required
+              value={formData.supplierId}
+              onChange={e => setFormData({ ...formData, supplierId: e.target.value })}
+              className="w-full bg-white/5 border border-border-subtle rounded-xl py-3 px-4 text-white focus:outline-none focus:ring-2 focus:ring-white/10 transition-all appearance-none"
+            >
+              <option value="" disabled className="bg-bg-card">Select Supplier</option>
+              {suppliers?.map((s: any) => (
+                <option key={s.id} value={s.id} className="bg-bg-card">{s.name}</option>
+              ))}
+            </select>
           </div>
 
           <div className="grid grid-cols-2 gap-6">

@@ -17,7 +17,6 @@ export default function LogShipmentModal({ isOpen, onClose }: LogShipmentModalPr
     skuId: '',
     unitsShipped: '',
     shipDate: new Date().toISOString().split('T')[0],
-    asnNumber: '',
     trackingNumber: '',
     freightCarrier: '',
   });
@@ -48,7 +47,6 @@ export default function LogShipmentModal({ isOpen, onClose }: LogShipmentModalPr
         skuId: '',
         unitsShipped: '',
         shipDate: new Date().toISOString().split('T')[0],
-        asnNumber: '',
         trackingNumber: '',
         freightCarrier: '',
       });
@@ -105,27 +103,15 @@ export default function LogShipmentModal({ isOpen, onClose }: LogShipmentModalPr
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-widest text-white/30 ml-1">Units Shipped</label>
-              <input
-                required
-                type="number"
-                value={formData.unitsShipped}
-                onChange={e => setFormData({ ...formData, unitsShipped: e.target.value })}
-                className="w-full bg-white/5 border border-border-subtle rounded-xl py-3 px-4 text-white focus:outline-none focus:ring-2 focus:ring-white/10 transition-all"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-widest text-white/30 ml-1">ASN Number</label>
-              <input
-                required
-                value={formData.asnNumber}
-                onChange={e => setFormData({ ...formData, asnNumber: e.target.value })}
-                placeholder="e.g. ASN-9988"
-                className="w-full bg-white/5 border border-border-subtle rounded-xl py-3 px-4 text-white focus:outline-none focus:ring-2 focus:ring-white/10 transition-all"
-              />
-            </div>
+          <div className="space-y-2">
+            <label className="text-xs font-bold uppercase tracking-widest text-white/30 ml-1">Units Shipped</label>
+            <input
+              required
+              type="number"
+              value={formData.unitsShipped}
+              onChange={e => setFormData({ ...formData, unitsShipped: e.target.value })}
+              className="w-full bg-white/5 border border-border-subtle rounded-xl py-3 px-4 text-white focus:outline-none focus:ring-2 focus:ring-white/10 transition-all"
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-6">

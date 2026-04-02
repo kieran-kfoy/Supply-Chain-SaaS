@@ -156,7 +156,7 @@ export default function FinishedGoodsLog() {
                 <th className="data-table-header">SKU</th>
                 <th className="data-table-header">Units</th>
                 <th className="data-table-header">Status</th>
-                <th className="data-table-header">Actions</th>
+                <th className="data-table-header">Received?</th>
               </tr>
             </thead>
             <tbody>
@@ -190,21 +190,20 @@ export default function FinishedGoodsLog() {
                     </span>
                   </td>
                   <td className="data-table-cell">
-                    <div className="flex items-center gap-2">
-                      {!shipment.received ? (
-                        <button
-                          onClick={() => receiveMutation.mutate(shipment.id)}
-                          disabled={receiveMutation.isPending && receiveMutation.variables === shipment.id}
-                          className="text-xs font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg bg-white text-black hover:bg-white/90 transition-all flex items-center gap-1.5 disabled:opacity-50"
-                        >
-                          {receiveMutation.isPending && receiveMutation.variables === shipment.id
-                            ? <Loader2 size={11} className="animate-spin" />
-                            : null}
-                          Received?
-                        </button>
-                      ) : (
-                        <span className="text-xs text-white/20 font-medium">✓ Done</span>
-                      )}
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        {receiveMutation.isPending && receiveMutation.variables === shipment.id ? (
+                          <Loader2 size={16} className="animate-spin text-white/40" />
+                        ) : (
+                          <input
+                            type="checkbox"
+                            checked={shipment.received}
+                            disabled={shipment.received}
+                            onChange={() => !shipment.received && receiveMutation.mutate(shipment.id)}
+                            className="w-4 h-4 rounded border-border-subtle bg-white/5 accent-emerald-500 cursor-pointer disabled:cursor-default"
+                          />
+                        )}
+                      </label>
                       <button
                         onClick={() => setDeletingId(shipment.id)}
                         className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-critical/20 text-white/40 hover:text-critical transition-all"

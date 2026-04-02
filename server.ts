@@ -230,6 +230,7 @@ async function startServer() {
     const tenantId = req.user.tenantId;
     const { orderTriggerDays, daysToOrderTarget, moq, unitCost, sellingPrice } = req.body;
     try {
+    const { orderTriggerDays, daysToOrderTarget, moq, unitCost, sellingPrice, supplierId } = req.body;
       const sku = await prisma.sku.update({
         where: { id: req.params.id, tenantId },
         data: {
@@ -238,6 +239,7 @@ async function startServer() {
           ...(moq != null && { moq: parseInt(moq) }),
           ...(unitCost != null && { unitCost: parseFloat(unitCost) }),
           ...(sellingPrice != null && { sellingPrice: parseFloat(sellingPrice) }),
+          ...(supplierId && { supplierId }),
         }
       });
       res.json({ success: true, data: sku });

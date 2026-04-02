@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuthStore } from '../store/useAuthStore';
-import { ArrowLeft, Package, TrendingUp, ShoppingCart, Pencil, Check, X } from 'lucide-react';
+import { ArrowLeft, Package, TrendingUp, ShoppingCart, Pencil, Check, X, ChevronDown } from 'lucide-react';
 import { motion } from 'motion/react';
 import { format } from 'date-fns';
 import { clsx } from 'clsx';
@@ -100,6 +100,71 @@ function EditableNumber({
   );
 }
 
+// Inline editable dropdown field
+function EditableDropdown({
+  label, value, displayValue, field, skuId, options
+}: {
+  label: string; value: string; displayValue: string; field: string; skuId: string;
+  options: { id: string; label: string }[];
+}) {
+  const token = useAuthStore((state) => state.token);
+  const queryClient = useQueryClient();
+  const [editing, setEditing] = React.useState(false);
+  const [draft, setDraft] = React.useState(value);
+
+  const mutation = useMutation({
+    mutationFn: async (val: string) => {
+      await axios.patch(`/api/v1/inventory/skus/${skuId}`, { [field]: val }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sku-detail', skuId] });
+      setEditing(false);
+    }
+  });
+
+  const handleSave = (val: string) => {
+    setDraft(val);
+    if (val !== value) mutation.mutate(val);
+    else setEditing(false);
+  };
+
+  return (
+    <div className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
+      <p className="text-xs text-white/40 uppercase font-bold tracking-widest">{label}</p>
+      {editing ? (
+        <div className="flex items-center gap-2">
+          <select
+            autoFocus
+            value={draft}
+            onChange={e => handleSave(e.target.value)}
+            onBlur={() => setEditing(false)}
+            className="bg-white/10 border border-white/20 rounded-lg py-1 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-white/20 appearance-none"
+          >
+            {options.map(o => (
+              <option key={o.id} value={o.id} className="bg-[#111]">{o.label}</option>
+            ))}
+          </select>
+          <button onClick={() => setEditing(false)} className="p-1 rounded-md hover:bg-white/10 text-white/40 transition-all">
+            <X size={14} />
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 group/edit">
+          <span className="text-sm font-medium">{displayValue}</span>
+          <button
+            onClick={() => { setDraft(value); setEditing(true); }}
+            className="p-1 rounded-md opacity-0 group-hover/edit:opacity-100 hover:bg-white/10 text-white/40 hover:text-white transition-all"
+          >
+            <Pencil size={12} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SkuDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -114,6 +179,14 @@ export default function SkuDetail() {
       return res.data.data;
     },
     enabled: !!id
+  });
+
+  const { data: suppliers = [] } = useQuery({
+    queryKey: ['suppliers'],
+    queryFn: async () => {
+      const res = await axios.get('/api/v1/suppliers', { headers: { Authorization: `Bearer ${token}` } });
+      return res.data.data;
+    }
   });
 
   const snap = sku?.snapshots?.[0];
@@ -233,7 +306,7 @@ export default function SkuDetail() {
             {[
               { label: 'SKU Code', value: sku.skuCode },
               { label: 'Description', value: sku.productDescription },
-              { label: 'Supplier', value: sku.supplier?.name },
+              { label: 'Barcode / UPC', value: sku.barcodeUpc ?? 'N/A' },
               { label: 'Unit Cost', value: sku.unitCost != null ? `$${sku.unitCost.toFixed(2)}` : '—' },
               { label: 'Selling Price', value: sku.sellingPrice != null ? `$${sku.sellingPrice.toFixed(2)}` : '—' },
               { label: 'MOQ', value: sku.moq?.toLocaleString() },
@@ -243,6 +316,16 @@ export default function SkuDetail() {
                 <p className="text-sm font-medium font-mono">{value ?? '—'}</p>
               </div>
             ))}
+
+            {/* Editable supplier dropdown */}
+            <EditableDropdown
+              label="Supplier"
+              value={sku.supplierId}
+              displayValue={sku.supplier?.name ?? '—'}
+              field="supplierId"
+              skuId={sku.id}
+              options={suppliers.map((s: any) => ({ id: s.id, label: s.name }))}
+            />
 
             {/* Editable fields */}
             <EditableNumber
