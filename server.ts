@@ -225,6 +225,24 @@ async function startServer() {
     res.json({ success: true, data: pos });
   });
 
+  // SKU Detail
+  app.get("/api/v1/inventory/skus/:id", authenticate, async (req: any, res) => {
+    const tenantId = req.user.tenantId;
+    const sku = await prisma.sku.findFirst({
+      where: { id: req.params.id, tenantId, isActive: true },
+      include: {
+        supplier: true,
+        snapshots: { orderBy: { snapshotDate: 'desc' }, take: 10 },
+        purchaseOrders: {
+          include: { supplier: true },
+          orderBy: { createdAt: 'desc' }
+        }
+      }
+    });
+    if (!sku) return res.status(404).json({ success: false, error: 'SKU not found' });
+    res.json({ success: true, data: sku });
+  });
+
   // Reorder Queue
   app.get("/api/v1/inventory/reorder-queue", authenticate, async (req: any, res) => {
     const tenantId = req.user.tenantId;
@@ -263,6 +281,100 @@ async function startServer() {
       res.json({ success: true, data: po });
     } catch (err) {
       res.status(500).json({ success: false, error: "Failed to create PO" });
+    }
+  });
+
+  // Edit PO
+  app.patch("/api/v1/purchase-orders/:id", authenticate, async (req: any, res) => {
+    const tenantId = req.user.tenantId;
+    const { status, notes, expectedArrival, orderQuantity } = req.body;
+    try {
+      const po = await prisma.purchaseOrder.update({
+        where: { id: req.params.id, tenantId },
+        data: {
+          ...(status && { status }),
+          ...(notes !== undefined && { notes }),
+          ...(expectedArrival && { expectedArrival: new Date(expectedArrival) }),
+          ...(orderQuantity && { orderQuantity: parseInt(orderQuantity) }),
+        },
+        include: { sku: true, supplier: true }
+      });
+      res.json({ success: true, data: po });
+    } catch (err) {
+      res.status(500).json({ success: false, error: 'Failed to update PO' });
+    }
+  });
+
+  // Delete PO
+  app.delete("/api/v1/purchase-orders/:id", authenticate, async (req: any, res) => {
+    const tenantId = req.user.tenantId;
+    try {
+      await prisma.purchaseOrder.delete({ where: { id: req.params.id, tenantId } });
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ success: false, error: 'Failed to delete PO' });
+    }
+  });
+
+  // Mark shipment received
+  app.patch("/api/v1/shipments/:id/receive", authenticate, async (req: any, res) => {
+    const tenantId = req.user.tenantId;
+    try {
+      const shipment = await prisma.shipment.update({
+        where: { id: req.params.id, tenantId },
+        data: { received: true, receivedDate: new Date() }
+      });
+      if (shipment.poId) {
+        await prisma.purchaseOrder.update({
+          where: { id: shipment.poId },
+          data: { status: 'RECEIVED' }
+        });
+      }
+      res.json({ success: true, data: shipment });
+    } catch (err) {
+      res.status(500).json({ success: false, error: 'Failed to mark shipment received' });
+    }
+  });
+
+  // Delete shipment
+  app.delete("/api/v1/shipments/:id", authenticate, async (req: any, res) => {
+    const tenantId = req.user.tenantId;
+    try {
+      await prisma.shipment.delete({ where: { id: req.params.id, tenantId } });
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ success: false, error: 'Failed to delete shipment' });
+    }
+  });
+
+  // Edit supplier
+  app.patch("/api/v1/suppliers/:id", authenticate, async (req: any, res) => {
+    const tenantId = req.user.tenantId;
+    const { name, contactName, contactEmail, supplierType } = req.body;
+    try {
+      const supplier = await prisma.supplier.update({
+        where: { id: req.params.id, tenantId },
+        data: {
+          ...(name && { name }),
+          ...(contactName !== undefined && { contactName }),
+          ...(contactEmail !== undefined && { contactEmail }),
+          ...(supplierType && { productionType: supplierType.toLowerCase() }),
+        }
+      });
+      res.json({ success: true, data: supplier });
+    } catch (err) {
+      res.status(500).json({ success: false, error: 'Failed to update supplier' });
+    }
+  });
+
+  // Delete supplier
+  app.delete("/api/v1/suppliers/:id", authenticate, async (req: any, res) => {
+    const tenantId = req.user.tenantId;
+    try {
+      await prisma.supplier.delete({ where: { id: req.params.id, tenantId } });
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ success: false, error: 'Failed to delete supplier' });
     }
   });
 

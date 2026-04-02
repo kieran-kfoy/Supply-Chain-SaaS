@@ -1,15 +1,16 @@
 import React from 'react';
-import { 
-  useReactTable, 
-  getCoreRowModel, 
-  flexRender, 
+import { useNavigate } from 'react-router-dom';
+import {
+  useReactTable,
+  getCoreRowModel,
+  flexRender,
   createColumnHelper,
   getSortedRowModel,
   SortingState,
   getFilteredRowModel
 } from '@tanstack/react-table';
 import { format } from 'date-fns';
-import { ArrowUpDown, Search, Filter, Package } from 'lucide-react';
+import { ArrowUpDown, Search, Filter, Package, ChevronRight } from 'lucide-react';
 import { clsx } from 'clsx';
 
 interface SkuHealthData {
@@ -60,7 +61,7 @@ const columns = [
     header: 'Status',
     cell: info => {
       const status = info.getValue();
-      if (!status) return '-';
+      if (!status) return <span className="text-white/30">—</span>;
       const colors = {
         CRITICAL: 'bg-critical text-white',
         REORDER_SOON: 'bg-reorder text-white',
@@ -74,19 +75,24 @@ const columns = [
       );
     },
   }),
+  columnHelper.display({
+    id: 'action',
+    header: '',
+    cell: () => (
+      <ChevronRight className="w-4 h-4 text-white/20 group-hover:text-white/60 transition-colors" />
+    ),
+  }),
 ];
 
 export default function SkuHealthTable({ data }: { data: SkuHealthData[] }) {
+  const navigate = useNavigate();
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = React.useState('');
 
   const table = useReactTable({
     data,
     columns,
-    state: {
-      sorting,
-      globalFilter,
-    },
+    state: { sorting, globalFilter },
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
     getCoreRowModel: getCoreRowModel(),
@@ -138,7 +144,11 @@ export default function SkuHealthTable({ data }: { data: SkuHealthData[] }) {
           </thead>
           <tbody>
             {table.getRowModel().rows.map(row => (
-              <tr key={row.id} className="hover:bg-white/[0.02] transition-colors group">
+              <tr
+                key={row.id}
+                onClick={() => navigate(`/inventory/${row.original.id}`)}
+                className="hover:bg-white/[0.04] transition-colors group cursor-pointer"
+              >
                 {row.getVisibleCells().map(cell => (
                   <td key={cell.id} className="data-table-cell">
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -149,14 +159,11 @@ export default function SkuHealthTable({ data }: { data: SkuHealthData[] }) {
           </tbody>
         </table>
       </div>
-      
+
       {data.length === 0 && (
         <div className="py-20 text-center">
           <Package className="w-12 h-12 text-white/10 mx-auto mb-4" />
           <p className="text-white/50 font-medium">No SKU data available</p>
-          <button className="mt-4 text-sm text-white/80 hover:text-white underline underline-offset-4">
-            Import inventory data
-          </button>
         </div>
       )}
     </div>

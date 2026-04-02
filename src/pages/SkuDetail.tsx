@@ -1,0 +1,237 @@
+import React from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useParams, useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import { useAuthStore } from '../store/useAuthStore';
+import { ArrowLeft, Package, TrendingUp, AlertTriangle, CheckCircle2, Calendar, ShoppingCart, Truck } from 'lucide-react';
+import { motion } from 'motion/react';
+import { format } from 'date-fns';
+import { clsx } from 'clsx';
+
+const statusColors: Record<string, string> = {
+  CRITICAL: 'bg-critical text-white',
+  REORDER_SOON: 'bg-reorder text-white',
+  MONITOR: 'bg-monitor text-white',
+  HEALTHY: 'bg-healthy text-white',
+};
+
+const poStatusColors: Record<string, string> = {
+  'OPEN': 'bg-blue-500/10 text-blue-500 border-blue-500/20',
+  'IN PRODUCTION': 'bg-amber-500/10 text-amber-500 border-amber-500/20',
+  'SHIPPED': 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
+  'RECEIVED': 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+  'COMPLETE': 'bg-white/10 text-white/50 border-white/20',
+};
+
+export default function SkuDetail() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const token = useAuthStore((state) => state.token);
+
+  const { data: sku, isLoading } = useQuery({
+    queryKey: ['sku-detail', id],
+    queryFn: async () => {
+      const res = await axios.get(`/api/v1/inventory/skus/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      return res.data.data;
+    },
+    enabled: !!id
+  });
+
+  const snap = sku?.snapshots?.[0];
+
+  if (isLoading) {
+    return (
+      <div className="p-8 flex items-center justify-center min-h-64">
+        <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!sku) {
+    return (
+      <div className="p-8 text-center text-white/40">
+        <Package className="w-12 h-12 mx-auto mb-4 opacity-20" />
+        <p>SKU not found</p>
+      </div>
+    );
+  }
+
+  const totalPOUnits = sku.purchaseOrders?.reduce((sum: number, po: any) => sum + po.orderQuantity, 0) ?? 0;
+  const openPOs = sku.purchaseOrders?.filter((po: any) => po.status === 'OPEN' || po.status === 'IN PRODUCTION').length ?? 0;
+
+  return (
+    <div className="p-8 space-y-8 max-w-7xl mx-auto">
+      {/* Header */}
+      <div className="flex items-start gap-4">
+        <button
+          onClick={() => navigate('/inventory')}
+          className="mt-1 p-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition-all"
+        >
+          <ArrowLeft size={18} />
+        </button>
+        <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="flex-1">
+          <div className="flex items-center gap-3">
+            <h2 className="text-3xl font-bold tracking-tight font-mono">{sku.skuCode}</h2>
+            {snap?.reorderStatus && (
+              <span className={clsx("status-badge text-xs", statusColors[snap.reorderStatus])}>
+                {snap.reorderStatus.replace('_', ' ')}
+              </span>
+            )}
+          </div>
+          <p className="text-white/50 mt-1">{sku.productDescription}</p>
+          <p className="text-white/30 text-sm mt-0.5">Supplier: {sku.supplier?.name}</p>
+        </motion.div>
+      </div>
+
+      {/* Key metrics */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-bg-card border border-border-subtle p-5 rounded-2xl space-y-1">
+          <p className="text-[10px] text-white/30 uppercase font-bold tracking-widest">On Hand</p>
+          <p className="text-3xl font-bold font-mono tracking-tight">{snap?.availableQuantity?.toLocaleString() ?? '—'}</p>
+          <p className="text-xs text-white/30">units available</p>
+        </div>
+        <div className="bg-bg-card border border-border-subtle p-5 rounded-2xl space-y-1">
+          <p className="text-[10px] text-white/30 uppercase font-bold tracking-widest">Days of Stock</p>
+          <p className={clsx("text-3xl font-bold font-mono tracking-tight",
+            snap?.daysInStock < 30 ? 'text-critical' : snap?.daysInStock < 60 ? 'text-reorder' : 'text-white'
+          )}>
+            {snap ? Math.round(snap.daysInStock) : '—'}
+          </p>
+          <p className="text-xs text-white/30">at current velocity</p>
+        </div>
+        <div className="bg-bg-card border border-border-subtle p-5 rounded-2xl space-y-1">
+          <p className="text-[10px] text-white/30 uppercase font-bold tracking-widest">30d Velocity</p>
+          <p className="text-3xl font-bold font-mono tracking-tight">{snap ? snap.velocity30d.toFixed(1) : '—'}</p>
+          <p className="text-xs text-white/30">units / day</p>
+        </div>
+        <div className="bg-bg-card border border-border-subtle p-5 rounded-2xl space-y-1">
+          <p className="text-[10px] text-white/30 uppercase font-bold tracking-widest">OOS Date</p>
+          <p className={clsx("text-xl font-bold font-mono tracking-tight",
+            snap?.oosDate && new Date(snap.oosDate) < new Date(Date.now() + 60 * 86400000) ? 'text-critical' : 'text-white'
+          )}>
+            {snap?.oosDate ? format(new Date(snap.oosDate), 'MMM d, yy') : '—'}
+          </p>
+          <p className="text-xs text-white/30">estimated sell-out</p>
+        </div>
+      </div>
+
+      {/* Sales Velocity Breakdown + SKU Info */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Sales Velocity */}
+        <div className="bg-bg-card border border-border-subtle p-6 rounded-2xl space-y-5">
+          <div className="flex items-center gap-3">
+            <TrendingUp className="text-white/40 w-5 h-5" />
+            <h3 className="text-lg font-bold tracking-tight">Sales Velocity</h3>
+          </div>
+          <div className="space-y-4">
+            {[
+              { label: '7-Day Velocity', value: snap?.velocity7d, sold: snap?.shipped7Days, days: 7 },
+              { label: '30-Day Velocity', value: snap?.velocity30d, sold: snap?.shipped30Days, days: 30 },
+              { label: '90-Day Velocity', value: snap?.velocity90d, sold: snap?.shipped90Days, days: 90 },
+            ].map(({ label, value, sold, days }) => (
+              <div key={days} className="flex items-center justify-between py-3 border-b border-white/5 last:border-0">
+                <div>
+                  <p className="text-sm font-medium text-white/70">{label}</p>
+                  <p className="text-[10px] text-white/30 mt-0.5">{sold ?? 0} units sold in {days}d</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xl font-bold font-mono">{value != null ? value.toFixed(2) : '—'}</p>
+                  <p className="text-[10px] text-white/30">units/day</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* SKU Info */}
+        <div className="bg-bg-card border border-border-subtle p-6 rounded-2xl space-y-5">
+          <div className="flex items-center gap-3">
+            <Package className="text-white/40 w-5 h-5" />
+            <h3 className="text-lg font-bold tracking-tight">Product Details</h3>
+          </div>
+          <div className="space-y-3">
+            {[
+              { label: 'SKU Code', value: sku.skuCode, mono: true },
+              { label: 'Description', value: sku.productDescription },
+              { label: 'Supplier', value: sku.supplier?.name },
+              { label: 'Unit Cost', value: sku.unitCost != null ? `$${sku.unitCost.toFixed(2)}` : '—', mono: true },
+              { label: 'Selling Price', value: sku.sellingPrice != null ? `$${sku.sellingPrice.toFixed(2)}` : '—', mono: true },
+              { label: 'MOQ', value: sku.moq?.toLocaleString(), mono: true },
+              { label: 'Order Trigger', value: `${sku.orderTriggerDays} days`, mono: true },
+              { label: 'Days to Order Target', value: `${sku.daysToOrderTarget} days`, mono: true },
+            ].map(({ label, value, mono }) => (
+              <div key={label} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
+                <p className="text-xs text-white/40 uppercase font-bold tracking-widest">{label}</p>
+                <p className={clsx("text-sm font-medium", mono && "font-mono")}>{value ?? '—'}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* PO History */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <ShoppingCart className="text-white/40 w-5 h-5" />
+            <h3 className="text-xl font-bold tracking-tight">Purchase Order History</h3>
+          </div>
+          <div className="flex items-center gap-4 text-sm text-white/40">
+            <span><span className="text-white font-bold font-mono">{sku.purchaseOrders?.length ?? 0}</span> total POs</span>
+            <span><span className="text-white font-bold font-mono">{openPOs}</span> open</span>
+            <span><span className="text-white font-bold font-mono">{totalPOUnits.toLocaleString()}</span> units ordered</span>
+          </div>
+        </div>
+
+        <div className="bg-bg-card border border-border-subtle rounded-2xl overflow-hidden">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-border-subtle">
+                <th className="data-table-header">PO #</th>
+                <th className="data-table-header">Supplier</th>
+                <th className="data-table-header">Quantity</th>
+                <th className="data-table-header">Status</th>
+                <th className="data-table-header">Submitted</th>
+                <th className="data-table-header">Expected</th>
+                <th className="data-table-header">Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sku.purchaseOrders?.map((po: any) => (
+                <tr key={po.id} className="hover:bg-white/[0.02] transition-colors">
+                  <td className="data-table-cell font-mono font-bold">{po.poNumber}</td>
+                  <td className="data-table-cell text-white/70">{po.supplier?.name}</td>
+                  <td className="data-table-cell font-mono">{po.orderQuantity.toLocaleString()}</td>
+                  <td className="data-table-cell">
+                    <span className={clsx(
+                      "px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tight border",
+                      poStatusColors[po.status] ?? 'bg-white/10 text-white/50 border-white/20'
+                    )}>
+                      {po.status}
+                    </span>
+                  </td>
+                  <td className="data-table-cell font-mono text-white/50 text-xs">
+                    {format(new Date(po.dateSubmitted), 'MMM d, yyyy')}
+                  </td>
+                  <td className="data-table-cell font-mono text-white/50 text-xs">
+                    {po.expectedArrival ? format(new Date(po.expectedArrival), 'MMM d, yyyy') : 'TBD'}
+                  </td>
+                  <td className="data-table-cell text-white/40 text-xs max-w-[160px] truncate">
+                    {po.notes ?? '—'}
+                  </td>
+                </tr>
+              ))}
+              {(!sku.purchaseOrders || sku.purchaseOrders.length === 0) && (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center text-white/30 italic">No purchase orders for this SKU</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}

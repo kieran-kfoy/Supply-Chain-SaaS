@@ -1,16 +1,106 @@
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { useAuthStore } from '../store/useAuthStore';
-import { ShoppingCart, AlertTriangle, Calendar, CheckCircle2, Clock, Plus } from 'lucide-react';
+import { ShoppingCart, AlertTriangle, Calendar, CheckCircle2, Clock, Plus, Pencil, Trash2, X, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { format } from 'date-fns';
 import { clsx } from 'clsx';
 import CreatePoModal from '../components/CreatePoModal';
 
+const PO_STATUSES = ['OPEN', 'IN PRODUCTION', 'SHIPPED', 'RECEIVED', 'COMPLETE'];
+
+function EditPoModal({ po, onClose }: { po: any; onClose: () => void }) {
+  const token = useAuthStore((state) => state.token);
+  const queryClient = useQueryClient();
+  const [formData, setFormData] = React.useState({
+    status: po.status,
+    orderQuantity: String(po.orderQuantity),
+    expectedArrival: po.expectedArrival ? format(new Date(po.expectedArrival), 'yyyy-MM-dd') : '',
+    notes: po.notes ?? '',
+  });
+
+  const mutation = useMutation({
+    mutationFn: async (data: any) => {
+      await axios.patch(`/api/v1/purchase-orders/${po.id}`, data, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });
+      onClose();
+    }
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+      <div className="bg-bg-card border border-border-subtle w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl">
+        <div className="p-6 border-b border-border-subtle flex items-center justify-between">
+          <div>
+            <h3 className="text-xl font-bold tracking-tight">Edit Purchase Order</h3>
+            <p className="text-white/40 text-sm mt-0.5 font-mono">{po.poNumber}</p>
+          </div>
+          <button onClick={onClose} className="text-white/30 hover:text-white transition-colors"><X size={24} /></button>
+        </div>
+        <form onSubmit={(e) => { e.preventDefault(); mutation.mutate(formData); }} className="p-6 space-y-5">
+          <div className="space-y-2">
+            <label className="text-xs font-bold uppercase tracking-widest text-white/30 ml-1">Status</label>
+            <select
+              value={formData.status}
+              onChange={e => setFormData({ ...formData, status: e.target.value })}
+              className="w-full bg-white/5 border border-border-subtle rounded-xl py-3 px-4 text-white focus:outline-none focus:ring-2 focus:ring-white/10 transition-all appearance-none"
+            >
+              {PO_STATUSES.map(s => (
+                <option key={s} value={s} className="bg-bg-card">{s}</option>
+              ))}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-widest text-white/30 ml-1">Order Quantity</label>
+              <input
+                type="number"
+                value={formData.orderQuantity}
+                onChange={e => setFormData({ ...formData, orderQuantity: e.target.value })}
+                className="w-full bg-white/5 border border-border-subtle rounded-xl py-3 px-4 text-white focus:outline-none focus:ring-2 focus:ring-white/10 transition-all"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-widest text-white/30 ml-1">Expected Arrival</label>
+              <input
+                type="date"
+                value={formData.expectedArrival}
+                onChange={e => setFormData({ ...formData, expectedArrival: e.target.value })}
+                className="w-full bg-white/5 border border-border-subtle rounded-xl py-3 px-4 text-white focus:outline-none focus:ring-2 focus:ring-white/10 transition-all"
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-bold uppercase tracking-widest text-white/30 ml-1">Notes</label>
+            <textarea
+              value={formData.notes}
+              onChange={e => setFormData({ ...formData, notes: e.target.value })}
+              className="w-full bg-white/5 border border-border-subtle rounded-xl py-3 px-4 text-white focus:outline-none focus:ring-2 focus:ring-white/10 transition-all min-h-[80px]"
+            />
+          </div>
+          <button
+            disabled={mutation.isPending}
+            className="w-full bg-white text-black font-bold py-3.5 rounded-xl hover:bg-white/90 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {mutation.isPending ? <Loader2 className="animate-spin" size={16} /> : 'Save Changes'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function Purchasing() {
   const token = useAuthStore((state) => state.token);
+  const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = React.useState(false);
+  const [editingPo, setEditingPo] = React.useState<any>(null);
+  const [deletingId, setDeletingId] = React.useState<string | null>(null);
 
   const { data: pos } = useQuery({
     queryKey: ['purchase-orders'],
@@ -32,24 +122,34 @@ export default function Purchasing() {
     }
   });
 
-  const statusColors = {
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await axios.delete(`/api/v1/purchase-orders/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });
+      setDeletingId(null);
+    }
+  });
+
+  const statusColors: Record<string, string> = {
     'OPEN': 'bg-blue-500/10 text-blue-500 border-blue-500/20',
     'IN PRODUCTION': 'bg-amber-500/10 text-amber-500 border-amber-500/20',
     'SHIPPED': 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
+    'RECEIVED': 'bg-purple-500/10 text-purple-400 border-purple-500/20',
     'COMPLETE': 'bg-white/10 text-white/50 border-white/20',
   };
 
   return (
     <div className="p-8 space-y-8 max-w-7xl mx-auto">
       <header className="flex items-center justify-between">
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-        >
+        <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
           <h2 className="text-3xl font-bold tracking-tight">Purchasing & Procurement</h2>
           <p className="text-white/50 mt-1">Manage purchase orders and reorder triggers</p>
         </motion.div>
-        <button 
+        <button
           onClick={() => setIsModalOpen(true)}
           className="bg-white text-black px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-white/90 transition-all flex items-center gap-2"
         >
@@ -59,6 +159,27 @@ export default function Purchasing() {
       </header>
 
       <CreatePoModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+      {editingPo && <EditPoModal po={editingPo} onClose={() => setEditingPo(null)} />}
+
+      {/* Delete confirm dialog */}
+      {deletingId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-bg-card border border-border-subtle w-full max-w-sm rounded-2xl p-6 space-y-4">
+            <h3 className="text-lg font-bold">Delete Purchase Order?</h3>
+            <p className="text-white/50 text-sm">This action cannot be undone.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setDeletingId(null)} className="flex-1 py-2.5 rounded-xl border border-border-subtle text-sm font-medium hover:bg-white/5 transition-all">Cancel</button>
+              <button
+                onClick={() => deleteMutation.mutate(deletingId)}
+                disabled={deleteMutation.isPending}
+                className="flex-1 py-2.5 rounded-xl bg-critical text-white text-sm font-bold hover:bg-critical/80 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {deleteMutation.isPending ? <Loader2 className="animate-spin" size={14} /> : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
@@ -80,6 +201,7 @@ export default function Purchasing() {
                   <th className="data-table-header">Quantity</th>
                   <th className="data-table-header">Status</th>
                   <th className="data-table-header">Expected</th>
+                  <th className="data-table-header"></th>
                 </tr>
               </thead>
               <tbody>
@@ -97,7 +219,7 @@ export default function Purchasing() {
                     <td className="data-table-cell">
                       <span className={clsx(
                         "px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tight border",
-                        statusColors[po.status as keyof typeof statusColors]
+                        statusColors[po.status] ?? 'bg-white/10 text-white/50 border-white/20'
                       )}>
                         {po.status}
                       </span>
@@ -105,11 +227,29 @@ export default function Purchasing() {
                     <td className="data-table-cell font-mono text-white/50">
                       {po.expectedArrival ? format(new Date(po.expectedArrival), 'MMM d') : 'TBD'}
                     </td>
+                    <td className="data-table-cell">
+                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => setEditingPo(po)}
+                          className="p-1.5 rounded-lg hover:bg-white/10 text-white/40 hover:text-white transition-all"
+                          title="Edit PO"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          onClick={() => setDeletingId(po.id)}
+                          className="p-1.5 rounded-lg hover:bg-critical/20 text-white/40 hover:text-critical transition-all"
+                          title="Delete PO"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
                 {(!pos || pos.length === 0) && (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center text-white/30 italic">No active purchase orders</td>
+                    <td colSpan={7} className="py-12 text-center text-white/30 italic">No active purchase orders</td>
                   </tr>
                 )}
               </tbody>
@@ -144,7 +284,6 @@ export default function Purchasing() {
                     item.reorderStatus === 'CRITICAL' ? 'text-critical' : 'text-reorder'
                   )} />
                 </div>
-                
                 <div className="grid grid-cols-2 gap-4 pt-2 border-t border-white/5">
                   <div>
                     <p className="text-[10px] text-white/30 uppercase font-bold tracking-widest">Available</p>
@@ -155,7 +294,6 @@ export default function Purchasing() {
                     <p className="text-sm font-bold font-mono">{Math.round(item.daysInStock)}</p>
                   </div>
                 </div>
-
                 <button className="w-full py-2 bg-white/5 border border-white/10 rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-white hover:text-black transition-all">
                   Generate PO Draft
                 </button>

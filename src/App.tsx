@@ -10,6 +10,7 @@ import Purchasing from './pages/Purchasing';
 import FinishedGoodsLog from './pages/FinishedGoodsLog';
 import Suppliers from './pages/Suppliers';
 import Settings from './pages/Settings';
+import SkuDetail from './pages/SkuDetail';
 
 const queryClient = new QueryClient();
 
@@ -38,6 +39,7 @@ export default function App() {
                 }
               />
               <Route path="/inventory" element={<PrivateRoute><Inventory /></PrivateRoute>} />
+              <Route path="/inventory/:id" element={<PrivateRoute><SkuDetail /></PrivateRoute>} />
               <Route path="/purchasing" element={<PrivateRoute><Purchasing /></PrivateRoute>} />
               <Route path="/inbound" element={<PrivateRoute><FinishedGoodsLog /></PrivateRoute>} />
               <Route path="/suppliers" element={<PrivateRoute><Suppliers /></PrivateRoute>} />
