@@ -225,6 +225,27 @@ async function startServer() {
     res.json({ success: true, data: pos });
   });
 
+  // Update SKU settings
+  app.patch("/api/v1/inventory/skus/:id", authenticate, async (req: any, res) => {
+    const tenantId = req.user.tenantId;
+    const { orderTriggerDays, daysToOrderTarget, moq, unitCost, sellingPrice } = req.body;
+    try {
+      const sku = await prisma.sku.update({
+        where: { id: req.params.id, tenantId },
+        data: {
+          ...(orderTriggerDays != null && { orderTriggerDays: parseInt(orderTriggerDays) }),
+          ...(daysToOrderTarget != null && { daysToOrderTarget: parseInt(daysToOrderTarget) }),
+          ...(moq != null && { moq: parseInt(moq) }),
+          ...(unitCost != null && { unitCost: parseFloat(unitCost) }),
+          ...(sellingPrice != null && { sellingPrice: parseFloat(sellingPrice) }),
+        }
+      });
+      res.json({ success: true, data: sku });
+    } catch (err) {
+      res.status(500).json({ success: false, error: 'Failed to update SKU' });
+    }
+  });
+
   // SKU Detail
   app.get("/api/v1/inventory/skus/:id", authenticate, async (req: any, res) => {
     const tenantId = req.user.tenantId;

@@ -1,9 +1,9 @@
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuthStore } from '../store/useAuthStore';
-import { ArrowLeft, Package, TrendingUp, AlertTriangle, CheckCircle2, Calendar, ShoppingCart, Truck } from 'lucide-react';
+import { ArrowLeft, Package, TrendingUp, ShoppingCart, Pencil, Check, X } from 'lucide-react';
 import { motion } from 'motion/react';
 import { format } from 'date-fns';
 import { clsx } from 'clsx';
@@ -22,6 +22,83 @@ const poStatusColors: Record<string, string> = {
   'RECEIVED': 'bg-purple-500/10 text-purple-400 border-purple-500/20',
   'COMPLETE': 'bg-white/10 text-white/50 border-white/20',
 };
+
+// Inline editable number field
+function EditableNumber({
+  label, value, field, skuId, suffix = '', description
+}: {
+  label: string; value: number; field: string; skuId: string; suffix?: string; description?: string;
+}) {
+  const token = useAuthStore((state) => state.token);
+  const queryClient = useQueryClient();
+  const [editing, setEditing] = React.useState(false);
+  const [draft, setDraft] = React.useState(String(value));
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
+
+  const mutation = useMutation({
+    mutationFn: async (val: string) => {
+      await axios.patch(`/api/v1/inventory/skus/${skuId}`, { [field]: val }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sku-detail', skuId] });
+      setEditing(false);
+    }
+  });
+
+  const handleSave = () => {
+    if (draft !== String(value)) mutation.mutate(draft);
+    else setEditing(false);
+  };
+
+  const handleCancel = () => {
+    setDraft(String(value));
+    setEditing(false);
+  };
+
+  return (
+    <div className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
+      <div>
+        <p className="text-xs text-white/40 uppercase font-bold tracking-widest">{label}</p>
+        {description && <p className="text-[10px] text-white/25 mt-0.5">{description}</p>}
+      </div>
+      {editing ? (
+        <div className="flex items-center gap-2">
+          <input
+            ref={inputRef}
+            type="number"
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') handleCancel(); }}
+            className="w-24 bg-white/10 border border-white/20 rounded-lg py-1 px-2 text-sm font-mono text-right focus:outline-none focus:ring-2 focus:ring-white/20"
+          />
+          {suffix && <span className="text-xs text-white/40">{suffix}</span>}
+          <button onClick={handleSave} disabled={mutation.isPending} className="p-1 rounded-md hover:bg-emerald-500/20 text-emerald-400 transition-all">
+            <Check size={14} />
+          </button>
+          <button onClick={handleCancel} className="p-1 rounded-md hover:bg-white/10 text-white/40 transition-all">
+            <X size={14} />
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 group/edit">
+          <span className="text-sm font-medium font-mono">{value?.toLocaleString()}{suffix ? ` ${suffix}` : ''}</span>
+          <button
+            onClick={() => { setDraft(String(value)); setEditing(true); }}
+            className="p-1 rounded-md opacity-0 group-hover/edit:opacity-100 hover:bg-white/10 text-white/40 hover:text-white transition-all"
+          >
+            <Pencil size={12} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function SkuDetail() {
   const { id } = useParams<{ id: string }>();
@@ -151,22 +228,39 @@ export default function SkuDetail() {
             <Package className="text-white/40 w-5 h-5" />
             <h3 className="text-lg font-bold tracking-tight">Product Details</h3>
           </div>
-          <div className="space-y-3">
+          <div className="space-y-0">
+            {/* Static fields */}
             {[
-              { label: 'SKU Code', value: sku.skuCode, mono: true },
+              { label: 'SKU Code', value: sku.skuCode },
               { label: 'Description', value: sku.productDescription },
               { label: 'Supplier', value: sku.supplier?.name },
-              { label: 'Unit Cost', value: sku.unitCost != null ? `$${sku.unitCost.toFixed(2)}` : '—', mono: true },
-              { label: 'Selling Price', value: sku.sellingPrice != null ? `$${sku.sellingPrice.toFixed(2)}` : '—', mono: true },
-              { label: 'MOQ', value: sku.moq?.toLocaleString(), mono: true },
-              { label: 'Order Trigger', value: `${sku.orderTriggerDays} days`, mono: true },
-              { label: 'Days to Order Target', value: `${sku.daysToOrderTarget} days`, mono: true },
-            ].map(({ label, value, mono }) => (
-              <div key={label} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
+              { label: 'Unit Cost', value: sku.unitCost != null ? `$${sku.unitCost.toFixed(2)}` : '—' },
+              { label: 'Selling Price', value: sku.sellingPrice != null ? `$${sku.sellingPrice.toFixed(2)}` : '—' },
+              { label: 'MOQ', value: sku.moq?.toLocaleString() },
+            ].map(({ label, value }) => (
+              <div key={label} className="flex items-center justify-between py-2 border-b border-white/5">
                 <p className="text-xs text-white/40 uppercase font-bold tracking-widest">{label}</p>
-                <p className={clsx("text-sm font-medium", mono && "font-mono")}>{value ?? '—'}</p>
+                <p className="text-sm font-medium font-mono">{value ?? '—'}</p>
               </div>
             ))}
+
+            {/* Editable fields */}
+            <EditableNumber
+              label="Order Trigger"
+              value={sku.orderTriggerDays}
+              field="orderTriggerDays"
+              skuId={sku.id}
+              suffix="days"
+              description="Reorder alert fires when days of stock drops below this"
+            />
+            <EditableNumber
+              label="Days to Order Target"
+              value={sku.daysToOrderTarget}
+              field="daysToOrderTarget"
+              skuId={sku.id}
+              suffix="days"
+              description="How many days of stock each PO should cover"
+            />
           </div>
         </div>
       </div>
