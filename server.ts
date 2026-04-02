@@ -5,6 +5,7 @@ import { PrismaClient } from "@prisma/client";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import dotenv from "dotenv";
+import shopifyRoutes from "./server/routes/shopify";
 
 dotenv.config();
 
@@ -33,6 +34,12 @@ async function startServer() {
   };
 
   // --- API Routes ---
+
+  // Shopify routes — install + callback are public, everything else requires auth
+  app.use("/api/v1/shopify", (req: any, res: any, next: any) => {
+    if (req.path === "/install" || req.path === "/callback") return next();
+    return authenticate(req, res, next);
+  }, shopifyRoutes);
 
   // Auth
   app.post("/api/v1/auth/login", async (req, res) => {
@@ -251,6 +258,160 @@ async function startServer() {
       res.status(500).json({ success: false, error: "Failed to create PO" });
     }
   });
+
+  // ── Background Auto-Sync ────────────────────────────────────────────────────
+  // Runs every 30 minutes and syncs any tenant whose cadence interval has elapsed
+  async function runAutoSync() {
+    try {
+      const integrations = await prisma.integration.findMany({
+        where: { integrationType: 'shopify', syncStatus: { not: 'error' } },
+      });
+
+      for (const integration of integrations) {
+        const creds = JSON.parse(integration.credentialsEncrypted);
+        const cadenceHours = creds.syncCadenceHours || 24;
+        const lastSync = integration.lastSyncAt ? new Date(integration.lastSyncAt) : new Date(0);
+        const hoursSinceSync = (Date.now() - lastSync.getTime()) / (1000 * 60 * 60);
+
+        if (hoursSinceSync >= cadenceHours) {
+          console.log(`[AutoSync] Syncing tenant ${integration.tenantId} (cadence: ${cadenceHours}h, last sync: ${Math.round(hoursSinceSync)}h ago)`);
+          try {
+            const { accessToken, shop } = creds;
+
+            // Fetch products
+            const productsRes = await fetch(`https://${shop}/admin/api/2024-01/products.json?limit=250`, {
+              headers: { 'X-Shopify-Access-Token': accessToken },
+            });
+            if (!productsRes.ok) throw new Error(`Shopify products API error: ${productsRes.status}`);
+            const { products } = await productsRes.json() as { products: any[] };
+
+            // Get tracked listings
+            const trackedListings = await prisma.channelListing.findMany({
+              where: { tenantId: integration.tenantId, platform: 'shopify' },
+              include: { sku: true },
+            });
+
+            // Build inventory item map
+            const invItemToSku = new Map<string, string>();
+            for (const product of products) {
+              for (const variant of product.variants) {
+                const listing = trackedListings.find(l => l.platformVariantId === String(variant.id));
+                if (listing) invItemToSku.set(String(variant.inventory_item_id), listing.skuId);
+              }
+            }
+
+            // Fetch inventory levels
+            const stockMap = new Map<string, number>();
+            const invItemIds = Array.from(invItemToSku.keys());
+            for (let i = 0; i < invItemIds.length; i += 50) {
+              const chunk = invItemIds.slice(i, i + 50);
+              const invRes = await fetch(
+                `https://${shop}/admin/api/2024-01/inventory_levels.json?inventory_item_ids=${chunk.join(',')}&limit=250`,
+                { headers: { 'X-Shopify-Access-Token': accessToken } }
+              );
+              if (invRes.ok) {
+                const { inventory_levels } = await invRes.json() as { inventory_levels: any[] };
+                for (const level of inventory_levels) {
+                  const skuId = invItemToSku.get(String(level.inventory_item_id));
+                  if (skuId) stockMap.set(skuId, (stockMap.get(skuId) || 0) + Math.max(0, level.available || 0));
+                }
+              }
+            }
+
+            // Fetch orders for velocity
+            const ninetyDaysAgo = new Date();
+            ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            const sevenDaysAgo = new Date();
+            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+            const ordersRes = await fetch(
+              `https://${shop}/admin/api/2024-01/orders.json?status=any&created_at_min=${ninetyDaysAgo.toISOString()}&limit=250&fields=id,created_at,line_items`,
+              { headers: { 'X-Shopify-Access-Token': accessToken } }
+            );
+
+            const salesMap = new Map<string, { sold7d: number; sold30d: number; sold90d: number }>();
+            if (ordersRes.ok) {
+              const { orders } = await ordersRes.json() as { orders: any[] };
+              for (const order of orders) {
+                const orderDate = new Date(order.created_at);
+                for (const item of order.line_items || []) {
+                  const vid = String(item.variant_id);
+                  const qty = item.quantity || 0;
+                  const s = salesMap.get(vid) || { sold7d: 0, sold30d: 0, sold90d: 0 };
+                  s.sold90d += qty;
+                  if (orderDate >= thirtyDaysAgo) s.sold30d += qty;
+                  if (orderDate >= sevenDaysAgo) s.sold7d += qty;
+                  salesMap.set(vid, s);
+                }
+              }
+            }
+
+            // Create snapshots
+            for (const listing of trackedListings) {
+              const sku = listing.sku;
+              const onHand = stockMap.get(sku.id) ?? 0;
+              const sales = salesMap.get(listing.platformVariantId || '') || { sold7d: 0, sold30d: 0, sold90d: 0 };
+              const v30 = sales.sold30d / 30;
+              const v90 = sales.sold90d / 90;
+              const v7 = sales.sold7d / 7;
+              const primary = v30 > 0 ? v30 : v90 > 0 ? v90 : 0;
+              const daysInStock = primary > 0 ? onHand / primary : 0;
+              const oosDate = primary > 0 ? new Date(Date.now() + daysInStock * 86400000) : null;
+              const daysUntilReorder = daysInStock - (sku.orderTriggerDays || 90);
+              let reorderStatus = 'HEALTHY';
+              if (primary === 0) reorderStatus = 'MONITOR';
+              else if (daysInStock <= 30) reorderStatus = 'CRITICAL';
+              else if (daysInStock <= 60) reorderStatus = 'REORDER_SOON';
+              else if (daysInStock <= 90) reorderStatus = 'MONITOR';
+
+              await prisma.inventorySnapshot.create({
+                data: {
+                  tenantId: integration.tenantId,
+                  skuId: sku.id,
+                  onHandQuantity: onHand,
+                  availableQuantity: onHand,
+                  shipped7Days: sales.sold7d,
+                  shipped30Days: sales.sold30d,
+                  shipped90Days: sales.sold90d,
+                  velocity7d: v7,
+                  velocity30d: v30,
+                  velocity90d: v90,
+                  daysInStock,
+                  daysOnOrder: 0,
+                  totalDaysOutstanding: daysInStock,
+                  oosDate,
+                  daysUntilReorder,
+                  reorderStatus,
+                  provider: 'shopify',
+                },
+              });
+            }
+
+            await prisma.integration.update({
+              where: { id: integration.id },
+              data: { lastSyncAt: new Date(), syncStatus: 'synced' },
+            });
+
+            console.log(`[AutoSync] Tenant ${integration.tenantId} synced — ${trackedListings.length} snapshots created`);
+          } catch (err: any) {
+            console.error(`[AutoSync] Failed for tenant ${integration.tenantId}:`, err.message);
+            await prisma.integration.update({
+              where: { id: integration.id },
+              data: { syncStatus: 'error', errorLog: err.message },
+            });
+          }
+        }
+      }
+    } catch (err: any) {
+      console.error('[AutoSync] Scheduler error:', err.message);
+    }
+  }
+
+  // Check every 30 minutes if any tenant is due for a sync
+  setInterval(runAutoSync, 30 * 60 * 1000);
+  console.log('[AutoSync] Background scheduler started (checks every 30 minutes)');
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {

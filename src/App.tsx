@@ -9,6 +9,7 @@ import Inventory from './pages/Inventory';
 import Purchasing from './pages/Purchasing';
 import FinishedGoodsLog from './pages/FinishedGoodsLog';
 import Suppliers from './pages/Suppliers';
+import Settings from './pages/Settings';
 
 const queryClient = new QueryClient();
 
@@ -22,7 +23,6 @@ export default function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="fixed top-0 left-0 z-[9999] bg-white text-black p-2 text-xs">App Loaded</div>
       <Router>
         <div className="flex min-h-screen bg-bg-main text-white">
           {token && <Sidebar />}
@@ -41,7 +41,7 @@ export default function App() {
               <Route path="/purchasing" element={<PrivateRoute><Purchasing /></PrivateRoute>} />
               <Route path="/inbound" element={<PrivateRoute><FinishedGoodsLog /></PrivateRoute>} />
               <Route path="/suppliers" element={<PrivateRoute><Suppliers /></PrivateRoute>} />
-              <Route path="/settings" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
+              <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
             </Routes>
           </main>
         </div>
