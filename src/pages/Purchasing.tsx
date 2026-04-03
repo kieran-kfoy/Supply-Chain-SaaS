@@ -9,6 +9,8 @@ import { clsx } from 'clsx';
 import CreatePoModal from '../components/CreatePoModal';
 
 const PO_STATUSES = ['OPEN', 'IN PRODUCTION', 'SHIPPED', 'RECEIVED', 'COMPLETE'];
+const OPEN_STATUSES = ['OPEN', 'IN PRODUCTION', 'SHIPPED'];
+const CLOSED_STATUSES = ['RECEIVED', 'COMPLETE'];
 
 function EditPoModal({ po, onClose }: { po: any; onClose: () => void }) {
   const token = useAuthStore((state) => state.token);
@@ -95,6 +97,90 @@ function EditPoModal({ po, onClose }: { po: any; onClose: () => void }) {
   );
 }
 
+function PoTable({ pos, title, statusColors, onEdit, onDelete }: {
+  pos: any[];
+  title: string;
+  statusColors: Record<string, string>;
+  onEdit: (po: any) => void;
+  onDelete: (id: string) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-bold tracking-tight">{title}</h3>
+        <div className="flex items-center gap-2 text-xs text-white/30 font-bold uppercase tracking-widest">
+          <Clock size={12} />
+          {pos.length} line items
+        </div>
+      </div>
+      <div className="bg-bg-card border border-border-subtle rounded-2xl overflow-hidden">
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="border-b border-border-subtle">
+              <th className="data-table-header">PO #</th>
+              <th className="data-table-header">SKU</th>
+              <th className="data-table-header">Supplier</th>
+              <th className="data-table-header">Quantity</th>
+              <th className="data-table-header">Status</th>
+              <th className="data-table-header">Expected</th>
+              <th className="data-table-header"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {pos.map((po: any) => (
+              <tr key={po.id} className="hover:bg-white/[0.02] transition-colors group">
+                <td className="data-table-cell font-mono font-bold">{po.poNumber}</td>
+                <td className="data-table-cell">
+                  <div className="flex flex-col">
+                    <span className="font-mono text-xs">{po.sku?.skuCode}</span>
+                    <span className="text-[10px] text-white/40 truncate max-w-[120px]">{po.sku?.productDescription}</span>
+                  </div>
+                </td>
+                <td className="data-table-cell text-white/80">{po.supplier?.name}</td>
+                <td className="data-table-cell font-mono">{po.orderQuantity.toLocaleString()}</td>
+                <td className="data-table-cell">
+                  <span className={clsx(
+                    "px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tight border",
+                    statusColors[po.status] ?? 'bg-white/10 text-white/50 border-white/20'
+                  )}>
+                    {po.status}
+                  </span>
+                </td>
+                <td className="data-table-cell font-mono text-white/50">
+                  {po.expectedArrival ? format(new Date(po.expectedArrival), 'MMM d') : 'TBD'}
+                </td>
+                <td className="data-table-cell">
+                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => onEdit(po)}
+                      className="p-1.5 rounded-lg hover:bg-white/10 text-white/40 hover:text-white transition-all"
+                      title="Edit"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    <button
+                      onClick={() => onDelete(po.id)}
+                      className="p-1.5 rounded-lg hover:bg-critical/20 text-white/40 hover:text-critical transition-all"
+                      title="Delete"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {pos.length === 0 && (
+              <tr>
+                <td colSpan={7} className="py-12 text-center text-white/30 italic">No purchase orders</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 export default function Purchasing() {
   const token = useAuthStore((state) => state.token);
   const queryClient = useQueryClient();
@@ -142,6 +228,9 @@ export default function Purchasing() {
     'COMPLETE': 'bg-white/10 text-white/50 border-white/20',
   };
 
+  const openPos = pos?.filter((p: any) => OPEN_STATUSES.includes(p.status)) ?? [];
+  const closedPos = pos?.filter((p: any) => CLOSED_STATUSES.includes(p.status)) ?? [];
+
   return (
     <div className="p-8 space-y-8 max-w-7xl mx-auto">
       <header className="flex items-center justify-between">
@@ -182,79 +271,24 @@ export default function Purchasing() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xl font-bold tracking-tight">Purchase Order Lines</h3>
-            <div className="flex items-center gap-2 text-xs text-white/30 font-bold uppercase tracking-widest">
-              <Clock size={12} />
-              {pos?.length ?? 0} line items
-            </div>
-          </div>
+        <div className="lg:col-span-2 space-y-8">
+          {/* Open POs */}
+          <PoTable
+            pos={openPos}
+            title={`Open Purchase Orders (${openPos.length})`}
+            statusColors={statusColors}
+            onEdit={setEditingPo}
+            onDelete={setDeletingId}
+          />
 
-          <div className="bg-bg-card border border-border-subtle rounded-2xl overflow-hidden">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-border-subtle">
-                  <th className="data-table-header">PO #</th>
-                  <th className="data-table-header">SKU</th>
-                  <th className="data-table-header">Supplier</th>
-                  <th className="data-table-header">Quantity</th>
-                  <th className="data-table-header">Status</th>
-                  <th className="data-table-header">Expected</th>
-                  <th className="data-table-header"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {pos?.map((po: any) => (
-                  <tr key={po.id} className="hover:bg-white/[0.02] transition-colors group">
-                    <td className="data-table-cell font-mono font-bold">{po.poNumber}</td>
-                    <td className="data-table-cell">
-                      <div className="flex flex-col">
-                        <span className="font-mono text-xs">{po.sku?.skuCode}</span>
-                        <span className="text-[10px] text-white/40 truncate max-w-[120px]">{po.sku?.productDescription}</span>
-                      </div>
-                    </td>
-                    <td className="data-table-cell text-white/80">{po.supplier?.name}</td>
-                    <td className="data-table-cell font-mono">{po.orderQuantity.toLocaleString()}</td>
-                    <td className="data-table-cell">
-                      <span className={clsx(
-                        "px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tight border",
-                        statusColors[po.status] ?? 'bg-white/10 text-white/50 border-white/20'
-                      )}>
-                        {po.status}
-                      </span>
-                    </td>
-                    <td className="data-table-cell font-mono text-white/50">
-                      {po.expectedArrival ? format(new Date(po.expectedArrival), 'MMM d') : 'TBD'}
-                    </td>
-                    <td className="data-table-cell">
-                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => setEditingPo(po)}
-                          className="p-1.5 rounded-lg hover:bg-white/10 text-white/40 hover:text-white transition-all"
-                          title="Edit"
-                        >
-                          <Pencil size={14} />
-                        </button>
-                        <button
-                          onClick={() => setDeletingId(po.id)}
-                          className="p-1.5 rounded-lg hover:bg-critical/20 text-white/40 hover:text-critical transition-all"
-                          title="Delete"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {(!pos || pos.length === 0) && (
-                  <tr>
-                    <td colSpan={7} className="py-12 text-center text-white/30 italic">No active purchase orders</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          {/* Closed POs */}
+          <PoTable
+            pos={closedPos}
+            title={`Closed Purchase Orders (${closedPos.length})`}
+            statusColors={statusColors}
+            onEdit={setEditingPo}
+            onDelete={setDeletingId}
+          />
         </div>
 
         <div className="space-y-6">

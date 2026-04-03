@@ -438,6 +438,26 @@ async function startServer() {
     }
   });
 
+  // Unreceive shipment (revert received status)
+  app.patch("/api/v1/shipments/:id/unreceive", authenticate, async (req: any, res) => {
+    const tenantId = req.user.tenantId;
+    try {
+      const shipment = await prisma.shipment.update({
+        where: { id: req.params.id, tenantId },
+        data: { received: false, receivedDate: null }
+      });
+      if (shipment.poId) {
+        await prisma.purchaseOrder.update({
+          where: { id: shipment.poId },
+          data: { status: 'OPEN' }
+        });
+      }
+      res.json({ success: true, data: shipment });
+    } catch (err) {
+      res.status(500).json({ success: false, error: 'Failed to unreceive shipment' });
+    }
+  });
+
   // Delete shipment
   app.delete("/api/v1/shipments/:id", authenticate, async (req: any, res) => {
     const tenantId = req.user.tenantId;
