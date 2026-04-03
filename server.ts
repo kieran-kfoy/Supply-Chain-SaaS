@@ -288,7 +288,7 @@ async function startServer() {
     res.json({ success: true, data: snapshots });
   });
 
-  // Purchase Orders
+  // Purchase Orders — single line (legacy)
   app.post("/api/v1/purchase-orders", authenticate, async (req: any, res) => {
     const tenantId = req.user.tenantId;
     const { poNumber, skuId, supplierId, orderQuantity, notes, packagingOrdered } = req.body;
@@ -314,7 +314,79 @@ async function startServer() {
     }
   });
 
-  // Edit PO
+  // Purchase Orders — multi-line (bulk)
+  app.post("/api/v1/purchase-orders/bulk", authenticate, async (req: any, res) => {
+    const tenantId = req.user.tenantId;
+    const { poNumber, supplierId, notes, packagingOrdered, lineItems } = req.body;
+
+    if (!lineItems || !Array.isArray(lineItems) || lineItems.length === 0) {
+      return res.status(400).json({ success: false, error: "At least one line item is required" });
+    }
+
+    try {
+      const created = [];
+      for (const line of lineItems) {
+        const po = await prisma.purchaseOrder.create({
+          data: {
+            tenantId,
+            poNumber,
+            skuId: line.skuId,
+            supplierId,
+            orderQuantity: parseInt(line.orderQuantity),
+            notes,
+            packagingOrdered: !!packagingOrdered,
+            dateSubmitted: new Date(),
+            status: "OPEN",
+            createdBy: req.user.id,
+          },
+          include: { sku: true, supplier: true },
+        });
+        created.push(po);
+      }
+      res.json({ success: true, data: created });
+    } catch (err) {
+      res.status(500).json({ success: false, error: "Failed to create PO" });
+    }
+  });
+
+  // Update all PO lines by PO number (grouped status/notes/expected arrival)
+  // IMPORTANT: Must be registered BEFORE :id routes so Express doesn't match "by-number" as an ID
+  app.patch("/api/v1/purchase-orders/by-number/:poNumber", authenticate, async (req: any, res) => {
+    const tenantId = req.user.tenantId;
+    const poNumber = decodeURIComponent(req.params.poNumber);
+    const { status, notes, expectedArrival } = req.body;
+    try {
+      await prisma.purchaseOrder.updateMany({
+        where: { tenantId, poNumber },
+        data: {
+          ...(status && { status }),
+          ...(notes !== undefined && { notes }),
+          ...(expectedArrival && { expectedArrival: new Date(expectedArrival) }),
+        },
+      });
+      const updated = await prisma.purchaseOrder.findMany({
+        where: { tenantId, poNumber },
+        include: { sku: true, supplier: true },
+      });
+      res.json({ success: true, data: updated });
+    } catch (err) {
+      res.status(500).json({ success: false, error: 'Failed to update PO group' });
+    }
+  });
+
+  // Delete all PO lines by PO number
+  app.delete("/api/v1/purchase-orders/by-number/:poNumber", authenticate, async (req: any, res) => {
+    const tenantId = req.user.tenantId;
+    const poNumber = decodeURIComponent(req.params.poNumber);
+    try {
+      await prisma.purchaseOrder.deleteMany({ where: { tenantId, poNumber } });
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ success: false, error: 'Failed to delete PO group' });
+    }
+  });
+
+  // Edit PO (single line)
   app.patch("/api/v1/purchase-orders/:id", authenticate, async (req: any, res) => {
     const tenantId = req.user.tenantId;
     const { status, notes, expectedArrival, orderQuantity } = req.body;
@@ -335,7 +407,7 @@ async function startServer() {
     }
   });
 
-  // Delete PO
+  // Delete PO (single line)
   app.delete("/api/v1/purchase-orders/:id", authenticate, async (req: any, res) => {
     const tenantId = req.user.tenantId;
     try {
