@@ -236,6 +236,16 @@ router.post('/sync', async (req: any, res) => {
 
     let updated = 0;
 
+    // Build a map of inventoryItemId → sellingPrice so we can update SKUs in Step 4
+    const invItemPriceMap = new Map<string, number>();
+    for (const product of products) {
+      for (const variant of product.variants) {
+        if (variant.inventory_item_id) {
+          invItemPriceMap.set(String(variant.inventory_item_id), parseFloat(variant.price || '0'));
+        }
+      }
+    }
+
     for (const product of products) {
       for (const variant of product.variants) {
         const description = product.variants.length > 1
@@ -310,7 +320,7 @@ router.post('/sync', async (req: any, res) => {
             tenantId,
             skuCode: realSku,
             productDescription: description,
-            unitCost: parseFloat(variant.compare_at_price || variant.price || '0'),
+            unitCost: 0, // Will be updated in Step 4 with real Shopify "Cost per item"
             sellingPrice: parseFloat(variant.price || '0'),
             supplierId: shopifySupplier.id,
           },
@@ -355,11 +365,14 @@ router.post('/sync', async (req: any, res) => {
     // Fetch inventory levels (Shopify returns available qty per location)
     const invItemIds = Array.from(invItemToSku.keys());
     const stockMap = new Map<string, number>(); // skuId → total available
+    const costMap = new Map<string, number>();  // skuId → unit cost from Shopify
 
     if (invItemIds.length > 0) {
       const chunkSize = 50; // Shopify allows up to 50 IDs per request
       for (let i = 0; i < invItemIds.length; i += chunkSize) {
         const chunk = invItemIds.slice(i, i + chunkSize);
+
+        // Fetch stock levels
         const invRes = await fetch(
           `https://${shop}/admin/api/2024-01/inventory_levels.json?inventory_item_ids=${chunk.join(',')}&limit=250`,
           { headers: { 'X-Shopify-Access-Token': accessToken } }
@@ -371,6 +384,21 @@ router.post('/sync', async (req: any, res) => {
             if (skuId) {
               const current = stockMap.get(skuId) || 0;
               stockMap.set(skuId, current + Math.max(0, level.available || 0));
+            }
+          }
+        }
+
+        // Fetch inventory items to get the real "Cost per item" field
+        const itemsRes = await fetch(
+          `https://${shop}/admin/api/2024-01/inventory_items.json?ids=${chunk.join(',')}&fields=id,cost`,
+          { headers: { 'X-Shopify-Access-Token': accessToken } }
+        );
+        if (itemsRes.ok) {
+          const { inventory_items } = await itemsRes.json() as { inventory_items: any[] };
+          for (const item of inventory_items) {
+            const skuId = invItemToSku.get(String(item.id));
+            if (skuId && item.cost != null) {
+              costMap.set(skuId, parseFloat(item.cost));
             }
           }
         }
@@ -440,6 +468,20 @@ router.post('/sync', async (req: any, res) => {
         reorderStatus = 'REORDER_SOON';
       } else if (daysInStock <= 90) {
         reorderStatus = 'MONITOR';
+      }
+
+      // Sync real unit cost and selling price from Shopify onto the SKU
+      const invItemId = variantToInvItem.get(listing.platformVariantId || '');
+      const freshCost = invItemId ? costMap.get(sku.id) : undefined;
+      const freshPrice = invItemId ? invItemPriceMap.get(invItemId) : undefined;
+      if (freshCost != null || freshPrice != null) {
+        await prisma.sku.update({
+          where: { id: sku.id },
+          data: {
+            ...(freshCost != null && { unitCost: freshCost }),
+            ...(freshPrice != null && { sellingPrice: freshPrice }),
+          },
+        });
       }
 
       await prisma.inventorySnapshot.create({

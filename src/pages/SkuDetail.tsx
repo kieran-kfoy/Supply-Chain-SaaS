@@ -309,7 +309,7 @@ export default function SkuDetail() {
               { label: 'Barcode / UPC', value: sku.barcodeUpc ?? 'N/A' },
               { label: 'Unit Cost', value: sku.unitCost != null ? `$${sku.unitCost.toFixed(2)}` : '—' },
               { label: 'Selling Price', value: sku.sellingPrice != null ? `$${sku.sellingPrice.toFixed(2)}` : '—' },
-              { label: 'MOQ', value: sku.moq?.toLocaleString() },
+              { label: 'Margin', value: sku.unitCost != null && sku.sellingPrice != null && sku.sellingPrice > 0 ? `${(((sku.sellingPrice - sku.unitCost) / sku.sellingPrice) * 100).toFixed(1)}%` : '—' },
             ].map(({ label, value }) => (
               <div key={label} className="flex items-center justify-between py-2 border-b border-white/5">
                 <p className="text-xs text-white/40 uppercase font-bold tracking-widest">{label}</p>
