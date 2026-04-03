@@ -205,4 +205,24 @@ export default function FinishedGoodsLog() {
                         className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-critical/20 text-white/40 hover:text-critical transition-all"
                         title="Delete shipment"
                       >
-                        <T
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {(!filtered || filtered.length === 0) && (
+                <tr>
+                  <td colSpan={6} className="py-20 text-center">
+                    <Truck className="w-12 h-12 text-white/10 mx-auto mb-4" />
+                    <p className="text-white/50 font-medium">No inbound shipments tracked</p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
