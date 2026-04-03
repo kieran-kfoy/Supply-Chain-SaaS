@@ -36,7 +36,7 @@ router.get('/install', (req: any, res) => {
   let tenantId = req.user?.tenantId;
   if (!tenantId && token) {
     try {
-      const decoded = jwt.verify(token as string, process.env.JWT_SECRET || 'inventory-os-secret-key') as any;
+      const decoded = jwt.verify(token as string, process.env.JWT_SECRET!) as any;
       tenantId = decoded.tenantId;
     } catch {
       return res.status(401).json({ success: false, error: 'Invalid token' });

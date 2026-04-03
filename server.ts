@@ -9,7 +9,11 @@ import shopifyRoutes from "./server/routes/shopify";
 dotenv.config();
 
 const prisma = new PrismaClient();
-const JWT_SECRET = process.env.JWT_SECRET || "inventory-os-secret-key";
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error("[Server] FATAL: JWT_SECRET environment variable is not set");
+  process.exit(1);
+}
 
 async function startServer() {
   const app = express();
@@ -40,10 +44,14 @@ async function startServer() {
   // Shopify routes — install + callback are public; internal auto-sync bypasses JWT
   app.use("/api/v1/shopify", (req: any, res: any, next: any) => {
     if (req.path === "/install" || req.path === "/callback") return next();
-    // Internal auto-sync calls inject tenant directly
+    // Internal auto-sync calls inject tenant directly (localhost only)
     if (req.headers["x-internal-sync"] === "true" && req.headers["x-tenant-id"]) {
-      req.user = { tenantId: req.headers["x-tenant-id"] };
-      return next();
+      const ip = req.ip || req.connection?.remoteAddress;
+      if (ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1") {
+        req.user = { tenantId: req.headers["x-tenant-id"] };
+        return next();
+      }
+      return res.status(403).json({ success: false, error: "Internal sync not allowed from external sources" });
     }
     return authenticate(req, res, next);
   }, shopifyRoutes);
@@ -228,7 +236,6 @@ async function startServer() {
   // Update SKU settings
   app.patch("/api/v1/inventory/skus/:id", authenticate, async (req: any, res) => {
     const tenantId = req.user.tenantId;
-    const { orderTriggerDays, daysToOrderTarget, moq, unitCost, sellingPrice } = req.body;
     try {
     const { orderTriggerDays, daysToOrderTarget, moq, unitCost, sellingPrice, supplierId } = req.body;
       const sku = await prisma.sku.update({
