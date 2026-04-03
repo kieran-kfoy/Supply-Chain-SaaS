@@ -15,12 +15,12 @@ const statusColors: Record<string, string> = {
   HEALTHY: 'bg-healthy text-white',
 };
 
-const poStatusStyle: Record<string, { bg: string; color: string; border: string }> = {
-  'OPEN':          { bg: 'rgba(96,165,250,0.1)',  color: '#60A5FA', border: 'rgba(96,165,250,0.25)' },
-  'IN PRODUCTION': { bg: 'rgba(251,191,36,0.1)',  color: '#FBB724', border: 'rgba(251,191,36,0.25)' },
-  'SHIPPED':       { bg: 'rgba(52,211,153,0.1)',  color: '#34D399', border: 'rgba(52,211,153,0.25)' },
-  'RECEIVED':      { bg: 'rgba(167,139,250,0.1)', color: '#A78BFA', border: 'rgba(167,139,250,0.25)' },
-  'COMPLETE':      { bg: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)', border: 'rgba(255,255,255,0.12)' },
+const poStatusColors: Record<string, string> = {
+  'OPEN': 'bg-blue-500/10 text-blue-500 border-blue-500/20',
+  'IN PRODUCTION': 'bg-amber-500/10 text-amber-500 border-amber-500/20',
+  'SHIPPED': 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
+  'RECEIVED': 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+  'COMPLETE': 'bg-white/10 text-white/50 border-white/20',
 };
 
 // Inline editable number field
@@ -212,89 +212,68 @@ export default function SkuDetail() {
   const openPOs = sku.purchaseOrders?.filter((po: any) => po.status === 'OPEN' || po.status === 'IN PRODUCTION').length ?? 0;
 
   return (
-    <div className="p-8 space-y-7 max-w-7xl mx-auto page-enter">
+    <div className="p-8 space-y-8 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex items-start gap-4">
         <button
           onClick={() => navigate('/inventory')}
-          className="mt-1 p-2 rounded-xl transition-all"
-          style={{ background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.4)' }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.08)'; (e.currentTarget as HTMLElement).style.color = '#fff'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)'; (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.4)'; }}
+          className="mt-1 p-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition-all"
         >
           <ArrowLeft size={18} />
         </button>
-        <motion.div initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.4, ease: [0.16,1,0.3,1] }} className="flex-1">
-          <div className="flex items-center gap-3 flex-wrap">
-            <h2 className="text-[26px] font-bold tracking-tight font-mono" style={{ color: '#F1F5F9' }}>{sku.skuCode}</h2>
+        <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="flex-1">
+          <div className="flex items-center gap-3">
+            <h2 className="text-3xl font-bold tracking-tight font-mono">{sku.skuCode}</h2>
             {snap?.reorderStatus && (
-              <span
-                className="status-badge"
-                style={{
-                  background: `${Object.values({CRITICAL:'rgba(248,113,113,0.12)',REORDER_SOON:'rgba(251,146,60,0.12)',MONITOR:'rgba(96,165,250,0.12)',HEALTHY:'rgba(52,211,153,0.12)'})[Object.keys({CRITICAL:0,REORDER_SOON:1,MONITOR:2,HEALTHY:3})[Object.keys({CRITICAL:0,REORDER_SOON:1,MONITOR:2,HEALTHY:3}).indexOf(snap.reorderStatus)] as any] ?? 'rgba(255,255,255,0.06)'}`,
-                  color: {CRITICAL:'#F87171',REORDER_SOON:'#FB923C',MONITOR:'#60A5FA',HEALTHY:'#34D399'}[snap.reorderStatus as keyof typeof statusColors] ?? '#fff',
-                  border: `1px solid ${({CRITICAL:'rgba(248,113,113,0.25)',REORDER_SOON:'rgba(251,146,60,0.25)',MONITOR:'rgba(96,165,250,0.25)',HEALTHY:'rgba(52,211,153,0.25)'}[snap.reorderStatus as string] ?? 'rgba(255,255,255,0.1)')}`,
-                }}
-              >
+              <span className={clsx("status-badge text-xs", statusColors[snap.reorderStatus])}>
                 {snap.reorderStatus.replace('_', ' ')}
               </span>
             )}
           </div>
-          <p className="text-[14px] mt-1" style={{ color: 'rgba(255,255,255,0.5)' }}>{sku.productDescription}</p>
-          <p className="text-[12px] mt-0.5" style={{ color: 'rgba(255,255,255,0.28)' }}>Supplier: {sku.supplier?.name}</p>
+          <p className="text-white/50 mt-1">{sku.productDescription}</p>
+          <p className="text-white/30 text-sm mt-0.5">Supplier: {sku.supplier?.name}</p>
         </motion.div>
       </div>
 
       {/* Key metrics */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          {
-            label: 'On Hand',
-            value: snap?.availableQuantity?.toLocaleString() ?? '—',
-            sub: 'units available',
-            color: '#6366F1',
-          },
-          {
-            label: 'Days of Stock',
-            value: snap ? Math.round(snap.daysInStock) : '—',
-            sub: 'at current velocity',
-            color: snap?.daysInStock < 30 ? '#F87171' : snap?.daysInStock < 60 ? '#FB923C' : '#34D399',
-          },
-          {
-            label: '30d Velocity',
-            value: snap ? snap.velocity30d.toFixed(1) : '—',
-            sub: 'units / day',
-            color: '#60A5FA',
-          },
-          {
-            label: 'OOS Date',
-            value: snap?.oosDate ? format(new Date(snap.oosDate), 'MMM d, yy') : '—',
-            sub: 'estimated sell-out',
-            color: snap?.oosDate && new Date(snap.oosDate) < new Date(Date.now() + 60 * 86400000) ? '#F87171' : '#F1F5F9',
-          },
-        ].map(({ label, value, sub, color }, i) => (
-          <motion.div
-            key={label}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.06 }}
-            className="stat-card"
-          >
-            <div className="absolute top-0 left-0 right-0 h-[2px] rounded-t-2xl" style={{ background: `linear-gradient(90deg, ${color}50, transparent)` }} />
-            <p className="text-[10px] font-bold uppercase tracking-[0.1em] mb-2" style={{ color: 'rgba(255,255,255,0.28)' }}>{label}</p>
-            <p className="text-[28px] font-bold font-mono tracking-tight leading-none" style={{ color }}>{value}</p>
-            <p className="text-[11px] mt-1.5" style={{ color: 'rgba(255,255,255,0.3)' }}>{sub}</p>
-          </motion.div>
-        ))}
+        <div className="bg-bg-card border border-border-subtle p-5 rounded-2xl space-y-1">
+          <p className="text-[10px] text-white/30 uppercase font-bold tracking-widest">On Hand</p>
+          <p className="text-3xl font-bold font-mono tracking-tight">{snap?.availableQuantity?.toLocaleString() ?? '—'}</p>
+          <p className="text-xs text-white/30">units available</p>
+        </div>
+        <div className="bg-bg-card border border-border-subtle p-5 rounded-2xl space-y-1">
+          <p className="text-[10px] text-white/30 uppercase font-bold tracking-widest">Days of Stock</p>
+          <p className={clsx("text-3xl font-bold font-mono tracking-tight",
+            snap?.daysInStock < 30 ? 'text-critical' : snap?.daysInStock < 60 ? 'text-reorder' : 'text-white'
+          )}>
+            {snap ? Math.round(snap.daysInStock) : '—'}
+          </p>
+          <p className="text-xs text-white/30">at current velocity</p>
+        </div>
+        <div className="bg-bg-card border border-border-subtle p-5 rounded-2xl space-y-1">
+          <p className="text-[10px] text-white/30 uppercase font-bold tracking-widest">30d Velocity</p>
+          <p className="text-3xl font-bold font-mono tracking-tight">{snap ? snap.velocity30d.toFixed(1) : '—'}</p>
+          <p className="text-xs text-white/30">units / day</p>
+        </div>
+        <div className="bg-bg-card border border-border-subtle p-5 rounded-2xl space-y-1">
+          <p className="text-[10px] text-white/30 uppercase font-bold tracking-widest">OOS Date</p>
+          <p className={clsx("text-xl font-bold font-mono tracking-tight",
+            snap?.oosDate && new Date(snap.oosDate) < new Date(Date.now() + 60 * 86400000) ? 'text-critical' : 'text-white'
+          )}>
+            {snap?.oosDate ? format(new Date(snap.oosDate), 'MMM d, yy') : '—'}
+          </p>
+          <p className="text-xs text-white/30">estimated sell-out</p>
+        </div>
       </div>
 
       {/* Sales Velocity Breakdown + SKU Info */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Sales Velocity */}
-        <div className="section-card p-6 space-y-5">
-          <div className="flex items-center gap-2.5">
-            <TrendingUp className="w-4 h-4" style={{ color: 'rgba(255,255,255,0.3)' }} />
-            <h3 className="text-[15px] font-bold tracking-tight" style={{ color: '#F1F5F9' }}>Sales Velocity</h3>
+        <div className="bg-bg-card border border-border-subtle p-6 rounded-2xl space-y-5">
+          <div className="flex items-center gap-3">
+            <TrendingUp className="text-white/40 w-5 h-5" />
+            <h3 className="text-lg font-bold tracking-tight">Sales Velocity</h3>
           </div>
           <div className="space-y-4">
             {[
@@ -317,10 +296,10 @@ export default function SkuDetail() {
         </div>
 
         {/* SKU Info */}
-        <div className="section-card p-6 space-y-5">
-          <div className="flex items-center gap-2.5">
-            <Package className="w-4 h-4" style={{ color: 'rgba(255,255,255,0.3)' }} />
-            <h3 className="text-[15px] font-bold tracking-tight" style={{ color: '#F1F5F9' }}>Product Details</h3>
+        <div className="bg-bg-card border border-border-subtle p-6 rounded-2xl space-y-5">
+          <div className="flex items-center gap-3">
+            <Package className="text-white/40 w-5 h-5" />
+            <h3 className="text-lg font-bold tracking-tight">Product Details</h3>
           </div>
           <div className="space-y-0">
             {/* Static fields */}
@@ -383,10 +362,10 @@ export default function SkuDetail() {
           </div>
         </div>
 
-        <div className="section-card overflow-hidden">
+        <div className="bg-bg-card border border-border-subtle rounded-2xl overflow-hidden">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr style={{ background: 'rgba(255,255,255,0.02)' }}>
+              <tr className="border-b border-border-subtle">
                 <th className="data-table-header">PO #</th>
                 <th className="data-table-header">Supplier</th>
                 <th className="data-table-header">Quantity</th>
@@ -403,14 +382,12 @@ export default function SkuDetail() {
                   <td className="data-table-cell text-white/70">{po.supplier?.name}</td>
                   <td className="data-table-cell font-mono">{po.orderQuantity.toLocaleString()}</td>
                   <td className="data-table-cell">
-                    {(() => {
-                      const ss = poStatusStyle[po.status] ?? poStatusStyle['COMPLETE'];
-                      return (
-                        <span className="status-badge" style={{ background: ss.bg, color: ss.color, border: `1px solid ${ss.border}` }}>
-                          {po.status}
-                        </span>
-                      );
-                    })()}
+                    <span className={clsx(
+                      "px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tight border",
+                      poStatusColors[po.status] ?? 'bg-white/10 text-white/50 border-white/20'
+                    )}>
+                      {po.status}
+                    </span>
                   </td>
                   <td className="data-table-cell font-mono text-white/50 text-xs">
                     {format(new Date(po.dateSubmitted), 'MMM d, yyyy')}

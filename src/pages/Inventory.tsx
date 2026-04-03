@@ -4,7 +4,7 @@ import axios from 'axios';
 import { useAuthStore } from '../store/useAuthStore';
 import SkuHealthTable from '../components/SkuHealthTable';
 import CreateSkuModal from '../components/CreateSkuModal';
-import { Package, Download, AlertTriangle } from 'lucide-react';
+import { Package, Search, Filter, Download } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export default function Inventory() {
@@ -21,62 +21,52 @@ export default function Inventory() {
     }
   });
 
-  const totalSkus = skus?.length ?? 0;
-  const activeSkus = skus?.filter((s: any) => s.isActive).length ?? 0;
-  const criticalCount = skus?.filter((s: any) => s.latestSnapshot?.reorderStatus === 'CRITICAL').length ?? 0;
-
   return (
-    <div className="p-8 space-y-7 max-w-7xl mx-auto page-enter">
-
-      {/* Header */}
-      <header className="page-header">
-        <motion.div initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.4, ease: [0.16,1,0.3,1] }}>
-          <h2 className="page-title">Inventory</h2>
-          <p className="page-subtitle">Monitor stock levels, velocity &amp; reorder status</p>
+    <div className="p-8 space-y-8 max-w-7xl mx-auto">
+      <header className="flex items-center justify-between">
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+        >
+          <h2 className="text-3xl font-bold tracking-tight">Inventory Management</h2>
+          <p className="text-white/50 mt-1">Monitor stock levels and reorder statuses</p>
         </motion.div>
         <div className="flex items-center gap-3">
-          <button className="btn-secondary">
-            <Download size={15} />
-            Export
+          <button className="flex items-center gap-2 bg-white/5 border border-border-subtle px-4 py-2 rounded-xl text-sm font-medium hover:bg-white/10 transition-all">
+            <Download size={16} />
+            Export CSV
           </button>
-          <button onClick={() => setIsModalOpen(true)} className="btn-primary">
-            <Package size={15} />
-            Add SKU
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="bg-white text-black px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-white/90 transition-all"
+          >
+            Add New SKU
           </button>
         </div>
       </header>
 
       <CreateSkuModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-4">
-        {[
-          { label: 'Total SKUs', value: totalSkus, color: '#6366F1' },
-          { label: 'Active SKUs', value: activeSkus, color: '#34D399' },
-          { label: 'Critical Stock', value: criticalCount, color: criticalCount > 0 ? '#F87171' : '#34D399' },
-        ].map(({ label, value, color }, i) => (
-          <motion.div
-            key={label}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.07, duration: 0.35, ease: [0.16,1,0.3,1] }}
-            className="stat-card"
-          >
-            <div className="absolute top-0 left-0 right-0 h-[2px] rounded-t-2xl" style={{ background: `linear-gradient(90deg, ${color}50, transparent)` }} />
-            <p className="text-[10px] font-bold uppercase tracking-[0.1em] mb-3" style={{ color: 'rgba(255,255,255,0.3)' }}>{label}</p>
-            <p className="text-[30px] font-bold tracking-tight font-mono" style={{ color }}>{value}</p>
-          </motion.div>
-        ))}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-bg-card border border-border-subtle p-6 rounded-2xl">
+          <p className="text-xs text-white/30 uppercase font-bold tracking-widest mb-1">Total SKUs</p>
+          <p className="text-3xl font-bold tracking-tight">{skus?.length ?? 0}</p>
+        </div>
+        <div className="bg-bg-card border border-border-subtle p-6 rounded-2xl">
+          <p className="text-xs text-white/30 uppercase font-bold tracking-widest mb-1">Active SKUs</p>
+          <p className="text-3xl font-bold tracking-tight">{skus?.filter((s: any) => s.isActive).length ?? 0}</p>
+        </div>
+        <div className="bg-bg-card border border-border-subtle p-6 rounded-2xl">
+          <p className="text-xs text-white/30 uppercase font-bold tracking-widest mb-1">Critical Stock</p>
+          <p className="text-3xl font-bold tracking-tight text-critical">
+            {skus?.filter((s: any) => s.latestSnapshot?.reorderStatus === 'CRITICAL').length ?? 0}
+          </p>
+        </div>
       </div>
 
-      {/* Table */}
-      <motion.section
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2, duration: 0.4 }}
-      >
+      <section className="space-y-4">
         <SkuHealthTable data={skus ?? []} />
-      </motion.section>
+      </section>
     </div>
   );
 }

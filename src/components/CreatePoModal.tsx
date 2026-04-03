@@ -76,62 +76,104 @@ export default function CreatePoModal({ isOpen, onClose }: CreatePoModalProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-card" style={{ maxWidth: 560 }}>
-        <div className="px-6 py-5 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-          <h3 className="text-[16px] font-bold tracking-tight">Create Purchase Order</h3>
-          <button onClick={onClose} className="p-1.5 rounded-lg transition-colors" style={{ color: 'rgba(255,255,255,0.35)' }}>
-            <X size={20} />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+      <div className="bg-bg-card border border-border-subtle w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl">
+        <div className="p-6 border-b border-border-subtle flex items-center justify-between">
+          <h3 className="text-xl font-bold tracking-tight">Create Purchase Order</h3>
+          <button onClick={onClose} className="text-white/30 hover:text-white transition-colors">
+            <X size={24} />
           </button>
         </div>
 
-        <form onSubmit={(e) => { e.preventDefault(); mutation.mutate(formData); }} className="p-6 space-y-4">
+        <form onSubmit={(e) => { e.preventDefault(); mutation.mutate(formData); }} className="p-6 space-y-6">
           {mutation.isError && (
-            <div className="p-3.5 rounded-xl text-[13px] font-medium" style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)', color: '#F87171' }}>
+            <div className="bg-critical/10 border border-critical/20 p-4 rounded-xl text-critical text-sm font-medium">
               Failed to submit PO. Please check your inputs and try again.
             </div>
           )}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="field-label">PO Number</label>
-              <input required value={formData.poNumber} onChange={e => setFormData({ ...formData, poNumber: e.target.value })} placeholder="PO-2024-001" className="input-field" />
+          <div className="grid grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-widest text-white/30 ml-1">PO Number</label>
+              <input
+                required
+                value={formData.poNumber}
+                onChange={e => setFormData({ ...formData, poNumber: e.target.value })}
+                placeholder="e.g. PO-2024-001"
+                className="w-full bg-white/5 border border-border-subtle rounded-xl py-3 px-4 text-white focus:outline-none focus:ring-2 focus:ring-white/10 transition-all"
+              />
             </div>
-            <div>
-              <label className="field-label">SKU</label>
-              <select required value={formData.skuId} onChange={e => setFormData({ ...formData, skuId: e.target.value })} className="input-field">
-                <option value="" disabled className="bg-[#0F1521]">Select SKU</option>
-                {skus?.map((s: any) => <option key={s.id} value={s.id} className="bg-[#0F1521]">{s.skuCode} — {s.productDescription}</option>)}
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-widest text-white/30 ml-1">SKU</label>
+              <select
+                required
+                value={formData.skuId}
+                onChange={e => setFormData({ ...formData, skuId: e.target.value })}
+                className="w-full bg-white/5 border border-border-subtle rounded-xl py-3 px-4 text-white focus:outline-none focus:ring-2 focus:ring-white/10 transition-all appearance-none"
+              >
+                <option value="" disabled className="bg-bg-card">Select SKU</option>
+                {skus?.map((s: any) => (
+                  <option key={s.id} value={s.id} className="bg-bg-card">{s.skuCode} - {s.productDescription}</option>
+                ))}
               </select>
             </div>
           </div>
 
-          <div>
-            <label className="field-label">Supplier</label>
-            <select required value={formData.supplierId} onChange={e => setFormData({ ...formData, supplierId: e.target.value })} className="input-field">
-              <option value="" disabled className="bg-[#0F1521]">Select Supplier</option>
-              {suppliers?.map((s: any) => <option key={s.id} value={s.id} className="bg-[#0F1521]">{s.name}</option>)}
+          <div className="space-y-2">
+            <label className="text-xs font-bold uppercase tracking-widest text-white/30 ml-1">Supplier</label>
+            <select
+              required
+              value={formData.supplierId}
+              onChange={e => setFormData({ ...formData, supplierId: e.target.value })}
+              className="w-full bg-white/5 border border-border-subtle rounded-xl py-3 px-4 text-white focus:outline-none focus:ring-2 focus:ring-white/10 transition-all appearance-none"
+            >
+              <option value="" disabled className="bg-bg-card">Select Supplier</option>
+              {suppliers?.map((s: any) => (
+                <option key={s.id} value={s.id} className="bg-bg-card">{s.name}</option>
+              ))}
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="field-label">Order Quantity</label>
-              <input required type="number" value={formData.orderQuantity} onChange={e => setFormData({ ...formData, orderQuantity: e.target.value })} className="input-field" />
+          <div className="grid grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-widest text-white/30 ml-1">Order Quantity</label>
+              <input
+                required
+                type="number"
+                value={formData.orderQuantity}
+                onChange={e => setFormData({ ...formData, orderQuantity: e.target.value })}
+                className="w-full bg-white/5 border border-border-subtle rounded-xl py-3 px-4 text-white focus:outline-none focus:ring-2 focus:ring-white/10 transition-all"
+              />
             </div>
-            <div className="flex items-center gap-2.5 pt-6">
-              <input type="checkbox" id="packaging" checked={formData.packagingOrdered} onChange={e => setFormData({ ...formData, packagingOrdered: e.target.checked })} className="w-4 h-4 accent-indigo-500 cursor-pointer" />
-              <label htmlFor="packaging" className="text-[13px] font-medium cursor-pointer" style={{ color: 'rgba(255,255,255,0.6)' }}>Packaging Ordered</label>
+            <div className="flex items-center gap-3 pt-8">
+              <input
+                type="checkbox"
+                id="packaging"
+                checked={formData.packagingOrdered}
+                onChange={e => setFormData({ ...formData, packagingOrdered: e.target.checked })}
+                className="w-5 h-5 rounded border-border-subtle bg-white/5 text-white focus:ring-white/10"
+              />
+              <label htmlFor="packaging" className="text-sm font-medium text-white/70">Packaging Ordered</label>
             </div>
           </div>
 
-          <div>
-            <label className="field-label">Notes</label>
-            <textarea value={formData.notes} onChange={e => setFormData({ ...formData, notes: e.target.value })} placeholder="Internal notes or instructions..." className="input-field min-h-[80px] resize-none" />
+          <div className="space-y-2">
+            <label className="text-xs font-bold uppercase tracking-widest text-white/30 ml-1">Notes</label>
+            <textarea
+              value={formData.notes}
+              onChange={e => setFormData({ ...formData, notes: e.target.value })}
+              placeholder="Internal notes or instructions..."
+              className="w-full bg-white/5 border border-border-subtle rounded-xl py-3 px-4 text-white focus:outline-none focus:ring-2 focus:ring-white/10 transition-all min-h-[100px]"
+            />
           </div>
 
-          <button type="submit" disabled={mutation.isPending} className="btn-primary w-full justify-center py-3 rounded-xl mt-2 disabled:opacity-50">
-            {mutation.isPending ? <Loader2 className="animate-spin w-4 h-4" /> : 'Submit Purchase Order'}
-          </button>
+          <div className="pt-4">
+            <button
+              disabled={mutation.isPending}
+              className="w-full bg-white text-black font-bold py-4 rounded-xl hover:bg-white/90 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {mutation.isPending ? <Loader2 className="animate-spin" /> : 'Submit Purchase Order'}
+            </button>
+          </div>
         </form>
       </div>
     </div>
