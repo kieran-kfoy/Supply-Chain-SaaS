@@ -54,7 +54,6 @@ export default function FinishedGoodsLog() {
     const q = search.toLowerCase();
     return (
       s.sku?.skuCode?.toLowerCase().includes(q) ||
-      s.asnNumber?.toLowerCase().includes(q) ||
       s.trackingNumber?.toLowerCase().includes(q) ||
       s.po?.poNumber?.toLowerCase().includes(q)
     );
@@ -136,7 +135,7 @@ export default function FinishedGoodsLog() {
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search shipments, ASNs, tracking..."
+              placeholder="Search shipments, tracking..."
               className="w-full bg-white/5 border border-border-subtle rounded-xl py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-white/10 transition-all"
             />
           </div>
@@ -151,7 +150,7 @@ export default function FinishedGoodsLog() {
             <thead>
               <tr className="border-b border-border-subtle">
                 <th className="data-table-header">Ship Date</th>
-                <th className="data-table-header">ASN / Tracking</th>
+                <th className="data-table-header">Tracking</th>
                 <th className="data-table-header">PO #</th>
                 <th className="data-table-header">SKU</th>
                 <th className="data-table-header">Units</th>
@@ -166,10 +165,7 @@ export default function FinishedGoodsLog() {
                     {format(new Date(shipment.shipDate), 'MMM d, yyyy')}
                   </td>
                   <td className="data-table-cell">
-                    <div className="flex flex-col">
-                      <span className="font-mono font-bold text-sm">{shipment.asnNumber ?? 'NO ASN'}</span>
-                      <span className="text-[10px] text-white/30 font-mono">{shipment.trackingNumber ?? 'No Tracking'}</span>
-                    </div>
+                    <span className="font-mono font-bold text-sm">{shipment.trackingNumber ?? 'No Tracking'}</span>
                   </td>
                   <td className="data-table-cell font-mono text-white/80">{shipment.po?.poNumber ?? 'N/A'}</td>
                   <td className="data-table-cell">
@@ -209,24 +205,4 @@ export default function FinishedGoodsLog() {
                         className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-critical/20 text-white/40 hover:text-critical transition-all"
                         title="Delete shipment"
                       >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {(!filtered || filtered.length === 0) && (
-                <tr>
-                  <td colSpan={7} className="py-20 text-center">
-                    <Truck className="w-12 h-12 text-white/10 mx-auto mb-4" />
-                    <p className="text-white/50 font-medium">No inbound shipments tracked</p>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
+                        <T
