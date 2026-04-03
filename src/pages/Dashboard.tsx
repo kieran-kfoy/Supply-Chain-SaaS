@@ -8,55 +8,73 @@ import {
   ShoppingCart, Truck, CheckCircle2, ArrowRight, Zap, DollarSign
 } from 'lucide-react';
 import { motion } from 'motion/react';
-import { format, differenceInDays, isPast, addDays } from 'date-fns';
+import { format, differenceInDays, isPast } from 'date-fns';
 import { clsx } from 'clsx';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 
 const HEALTH_COLORS: Record<string, string> = {
-  CRITICAL: '#ef4444',
-  REORDER_SOON: '#f59e0b',
-  MONITOR: '#3b82f6',
-  HEALTHY: '#22c55e',
+  CRITICAL:    '#F87171',
+  REORDER_SOON:'#FB923C',
+  MONITOR:     '#60A5FA',
+  HEALTHY:     '#34D399',
 };
 
 const HEALTH_LABELS: Record<string, string> = {
-  CRITICAL: 'Critical',
-  REORDER_SOON: 'Reorder Soon',
-  MONITOR: 'Monitor',
-  HEALTHY: 'Healthy',
+  CRITICAL:    'Critical',
+  REORDER_SOON:'Reorder Soon',
+  MONITOR:     'Monitor',
+  HEALTHY:     'Healthy',
 };
 
-function StatCard({ label, value, sub, icon: Icon, color, delay }: any) {
+function StatCard({ label, value, sub, icon: Icon, accentColor, delay }: any) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay }}
-      className="bg-bg-card border border-border-subtle p-6 rounded-2xl space-y-4"
+      transition={{ delay, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+      className="stat-card"
     >
-      <div className="flex items-center justify-between">
-        <div className={clsx("w-10 h-10 rounded-xl flex items-center justify-center", color.bg)}>
-          <Icon className={clsx("w-5 h-5", color.icon)} />
+      {/* Accent top line */}
+      <div
+        className="absolute top-0 left-0 right-0 h-[2px] rounded-t-2xl"
+        style={{ background: `linear-gradient(90deg, ${accentColor}60, ${accentColor}20, transparent)` }}
+      />
+      <div className="flex items-start justify-between mb-4">
+        <div
+          className="w-9 h-9 rounded-xl flex items-center justify-center"
+          style={{ background: `${accentColor}15` }}
+        >
+          <Icon className="w-[18px] h-[18px]" style={{ color: accentColor }} />
         </div>
-        <span className="text-[10px] font-bold uppercase tracking-widest text-white/20">Live</span>
+        <span
+          className="text-[9px] font-bold uppercase tracking-[0.12em] px-2 py-0.5 rounded-full"
+          style={{ background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.25)' }}
+        >
+          Live
+        </span>
       </div>
-      <div>
-        <p className="text-3xl font-bold tracking-tight">{value}</p>
-        <p className="text-sm text-white/50 font-medium mt-0.5">{label}</p>
-        {sub && <p className="text-[11px] text-white/30 mt-1">{sub}</p>}
-      </div>
+      <p className="text-[28px] font-bold tracking-tight leading-none" style={{ color: '#F1F5F9' }}>{value}</p>
+      <p className="text-[13px] font-medium mt-1.5" style={{ color: 'rgba(255,255,255,0.5)' }}>{label}</p>
+      {sub && <p className="text-[11px] mt-1" style={{ color: 'rgba(255,255,255,0.28)' }}>{sub}</p>}
     </motion.div>
   );
 }
 
 function FlagBadge({ type }: { type: 'dead_stock' | 'stockout' | 'spike' }) {
   const config = {
-    dead_stock: { label: 'Dead Stock', color: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
-    stockout: { label: 'Stockout', color: 'bg-critical/10 text-critical border-critical/20' },
-    spike: { label: 'Velocity Spike', color: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
+    dead_stock: { label: 'Dead Stock', bg: 'rgba(251,146,60,0.12)', color: '#FB923C', border: 'rgba(251,146,60,0.25)' },
+    stockout:   { label: 'Stockout',   bg: 'rgba(248,113,113,0.12)', color: '#F87171', border: 'rgba(248,113,113,0.25)' },
+    spike:      { label: 'Spike',      bg: 'rgba(96,165,250,0.12)',  color: '#60A5FA', border: 'rgba(96,165,250,0.25)' },
   };
-  const { label, color } = config[type];
-  return <span className={clsx("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tight border", color)}>{label}</span>;
+  const { label, bg, color, border } = config[type];
+  return (
+    <span
+      className="inline-flex items-center px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-[0.06em]"
+      style={{ background: bg, color, border: `1px solid ${border}` }}
+    >
+      {label}
+    </span>
+  );
 }
 
 export default function Dashboard() {
@@ -90,9 +108,7 @@ export default function Dashboard() {
     }
   });
 
-  // ── Derived metrics ──────────────────────────────────────────────────────────
-
-  // Portfolio health breakdown
+  // ── Derived metrics ─────────────────────────────────────────────────────────
   const healthBreakdown = ['CRITICAL', 'REORDER_SOON', 'MONITOR', 'HEALTHY'].map(status => ({
     status,
     count: skus.filter((s: any) => s.latestSnapshot?.reorderStatus === status).length,
@@ -103,7 +119,6 @@ export default function Dashboard() {
     .filter((s: any) => s.latestSnapshot.reorderStatus === 'CRITICAL' || s.latestSnapshot.reorderStatus === 'REORDER_SOON')
     .sort((a: any, b: any) => (a.latestSnapshot.daysInStock ?? 9999) - (b.latestSnapshot.daysInStock ?? 9999));
 
-  // Capital metrics
   const inventoryValue = skusWithSnapshot.reduce((sum: number, s: any) =>
     sum + (s.latestSnapshot.availableQuantity ?? 0) * (s.unitCost ?? 0), 0);
 
@@ -111,13 +126,11 @@ export default function Dashboard() {
   const capitalOnOrder = openPOs.reduce((sum: number, p: any) =>
     sum + (p.orderQuantity ?? 0) * (p.sku?.unitCost ?? 0), 0);
 
-  // Next OOS
   const nextOos = skusWithSnapshot
     .filter((s: any) => s.latestSnapshot.oosDate)
     .sort((a: any, b: any) => new Date(a.latestSnapshot.oosDate).getTime() - new Date(b.latestSnapshot.oosDate).getTime())[0];
   const daysToNextOos = nextOos ? differenceInDays(new Date(nextOos.latestSnapshot.oosDate), now) : null;
 
-  // Anomaly flags
   const deadStock = skusWithSnapshot.filter((s: any) =>
     (s.latestSnapshot.velocity30d ?? 0) === 0 && (s.latestSnapshot.availableQuantity ?? 0) > 0
   );
@@ -125,20 +138,17 @@ export default function Dashboard() {
     (s.latestSnapshot.availableQuantity ?? 0) === 0
   );
 
-  // Upcoming arrivals (next 60 days)
   const upcoming = pos
     .filter((p: any) => p.expectedArrival && !isPast(new Date(p.expectedArrival)) &&
       differenceInDays(new Date(p.expectedArrival), now) <= 60 &&
       p.status !== 'RECEIVED' && p.status !== 'COMPLETE')
     .sort((a: any, b: any) => new Date(a.expectedArrival).getTime() - new Date(b.expectedArrival).getTime());
 
-  // Overdue POs (expected arrival passed, not received/complete)
   const overduePOs = pos.filter((p: any) =>
     p.expectedArrival && isPast(new Date(p.expectedArrival)) &&
     p.status !== 'RECEIVED' && p.status !== 'COMPLETE'
   );
 
-  // In transit
   const inTransit = shipments.filter((s: any) => !s.received);
 
   const fmt$ = (n: number) => n >= 1_000_000
@@ -148,28 +158,37 @@ export default function Dashboard() {
   const allClear = criticalSkus.length === 0 && overduePOs.length === 0 && stockouts.length === 0;
 
   return (
-    <div className="p-8 space-y-8 max-w-7xl mx-auto">
+    <div className="p-8 space-y-7 max-w-7xl mx-auto page-enter">
 
       {/* Header */}
       <header className="flex items-start justify-between">
-        <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
-          <h2 className="text-3xl font-bold tracking-tight">{greeting} 👋</h2>
-          <p className="text-white/40 mt-1">{format(now, 'EEEE, MMMM d, yyyy')} · Supply Chain Command Center</p>
+        <motion.div initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.4, ease: [0.16,1,0.3,1] }}>
+          <h2 className="text-[26px] font-bold tracking-tight" style={{ color: '#F1F5F9' }}>
+            {greeting} <span style={{ fontWeight: 300 }}>👋</span>
+          </h2>
+          <p className="text-[13px] mt-1" style={{ color: 'rgba(255,255,255,0.35)' }}>
+            {format(now, 'EEEE, MMMM d, yyyy')} · Command Center
+          </p>
         </motion.div>
-        <div className="text-right text-xs text-white/30 font-medium">
-          <p className="uppercase tracking-widest font-bold">Portfolio</p>
-          <p className="text-white font-mono text-lg mt-0.5">{skus.length} SKUs</p>
-        </div>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.2 }}
+          className="text-right"
+        >
+          <p className="text-[10px] font-bold uppercase tracking-[0.1em]" style={{ color: 'rgba(255,255,255,0.2)' }}>Portfolio</p>
+          <p className="text-[22px] font-bold font-mono tracking-tight mt-0.5" style={{ color: '#F1F5F9' }}>{skus.length} <span className="text-[14px] font-normal" style={{ color: 'rgba(255,255,255,0.3)' }}>SKUs</span></p>
+        </motion.div>
       </header>
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           label="Inventory Value"
           value={fmt$(inventoryValue)}
-          sub="Total stock on hand (cost)"
+          sub="Total stock on hand"
           icon={DollarSign}
-          color={{ bg: 'bg-emerald-500/10', icon: 'text-emerald-400' }}
+          accentColor="#34D399"
           delay={0}
         />
         <StatCard
@@ -177,73 +196,90 @@ export default function Dashboard() {
           value={fmt$(capitalOnOrder)}
           sub={`${openPOs.length} open POs`}
           icon={ShoppingCart}
-          color={{ bg: 'bg-blue-500/10', icon: 'text-blue-400' }}
-          delay={0.05}
+          accentColor="#60A5FA"
+          delay={0.06}
         />
         <StatCard
           label="Needs Attention"
           value={criticalSkus.length}
-          sub={criticalSkus.length === 0 ? 'All SKUs healthy' : 'SKUs require action'}
+          sub={criticalSkus.length === 0 ? 'All SKUs healthy ✓' : 'SKUs require action'}
           icon={AlertTriangle}
-          color={{ bg: criticalSkus.length > 0 ? 'bg-critical/10' : 'bg-emerald-500/10', icon: criticalSkus.length > 0 ? 'text-critical' : 'text-emerald-400' }}
-          delay={0.1}
+          accentColor={criticalSkus.length > 0 ? '#F87171' : '#34D399'}
+          delay={0.12}
         />
         <StatCard
           label="Next Stockout"
-          value={daysToNextOos != null ? `${daysToNextOos}d` : 'None'}
+          value={daysToNextOos != null ? `${daysToNextOos}d` : '—'}
           sub={nextOos ? `${nextOos.skuCode} · ${format(new Date(nextOos.latestSnapshot.oosDate), 'MMM d')}` : 'No stockouts projected'}
           icon={Clock}
-          color={{ bg: daysToNextOos != null && daysToNextOos < 30 ? 'bg-critical/10' : 'bg-white/5', icon: daysToNextOos != null && daysToNextOos < 30 ? 'text-critical' : 'text-white/40' }}
-          delay={0.15}
+          accentColor={daysToNextOos != null && daysToNextOos < 30 ? '#F87171' : '#6366F1'}
+          delay={0.18}
         />
       </div>
 
-      {/* Main two-column section */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+      {/* Main two-column */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
 
-        {/* Action Required — wider left column */}
+        {/* Action Required */}
         <div className="lg:col-span-3 space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-xl font-bold tracking-tight flex items-center gap-2">
-              <Zap className="text-critical w-5 h-5" />
-              Action Required
-            </h3>
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'rgba(248,113,113,0.12)' }}>
+                <Zap className="w-3.5 h-3.5" style={{ color: '#F87171' }} />
+              </div>
+              <h3 className="text-[15px] font-bold tracking-tight" style={{ color: '#F1F5F9' }}>Action Required</h3>
+            </div>
             {criticalSkus.length > 0 && (
-              <span className="bg-critical/10 text-critical text-[10px] font-bold px-2.5 py-1 rounded-full border border-critical/20">
+              <span
+                className="text-[10px] font-bold px-2.5 py-1 rounded-full"
+                style={{ background: 'rgba(248,113,113,0.1)', color: '#F87171', border: '1px solid rgba(248,113,113,0.2)' }}
+              >
                 {criticalSkus.length} SKU{criticalSkus.length > 1 ? 's' : ''}
               </span>
             )}
           </div>
 
           {allClear ? (
-            <div className="bg-bg-card border border-border-subtle border-dashed p-10 rounded-2xl text-center">
-              <CheckCircle2 className="w-10 h-10 text-healthy mx-auto mb-3 opacity-60" />
-              <p className="text-white font-bold text-lg">All clear</p>
-              <p className="text-white/40 text-sm mt-1">No urgent actions required right now</p>
+            <div
+              className="p-10 rounded-2xl text-center"
+              style={{
+                background: 'rgba(52,211,153,0.04)',
+                border: '1px dashed rgba(52,211,153,0.2)',
+              }}
+            >
+              <CheckCircle2 className="w-10 h-10 mx-auto mb-3" style={{ color: '#34D399', opacity: 0.5 }} />
+              <p className="font-bold text-[15px]" style={{ color: '#F1F5F9' }}>All clear</p>
+              <p className="text-[13px] mt-1" style={{ color: 'rgba(255,255,255,0.35)' }}>No urgent actions required right now</p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {/* Overdue POs */}
               {overduePOs.map((po: any) => (
                 <motion.div
                   key={po.id}
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
-                  className="bg-bg-card border border-critical/30 p-4 rounded-xl flex items-center gap-4"
+                  className="p-4 rounded-2xl flex items-center gap-4"
+                  style={{
+                    background: 'rgba(248,113,113,0.05)',
+                    border: '1px solid rgba(248,113,113,0.2)',
+                  }}
                 >
-                  <div className="w-9 h-9 bg-critical/10 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <ShoppingCart className="text-critical w-4 h-4" />
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(248,113,113,0.12)' }}>
+                    <ShoppingCart className="w-4 h-4" style={{ color: '#F87171' }} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <p className="font-bold text-sm">{po.poNumber}</p>
-                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-tight bg-critical/10 text-critical border border-critical/20">Overdue</span>
+                      <p className="font-bold text-[13px]">{po.poNumber}</p>
+                      <FlagBadge type="stockout" />
                     </div>
-                    <p className="text-[11px] text-white/40 mt-0.5">{po.sku?.skuCode} · Was due {format(new Date(po.expectedArrival), 'MMM d')}</p>
+                    <p className="text-[11px] mt-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                      {po.sku?.skuCode} · Was due {format(new Date(po.expectedArrival), 'MMM d')}
+                    </p>
                   </div>
                   <button
                     onClick={() => navigate('/purchasing')}
-                    className="flex-shrink-0 text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white hover:text-black transition-all"
+                    className="btn-secondary text-[11px] shrink-0"
                   >
                     View PO
                   </button>
@@ -256,24 +292,20 @@ export default function Dashboard() {
                   key={sku.id}
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
-                  className="bg-bg-card border border-critical/30 p-4 rounded-xl flex items-center gap-4"
+                  className="p-4 rounded-2xl flex items-center gap-4"
+                  style={{ background: 'rgba(248,113,113,0.05)', border: '1px solid rgba(248,113,113,0.2)' }}
                 >
-                  <div className="w-9 h-9 bg-critical/10 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <Package className="text-critical w-4 h-4" />
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(248,113,113,0.12)' }}>
+                    <Package className="w-4 h-4" style={{ color: '#F87171' }} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <p className="font-bold text-sm font-mono">{sku.skuCode}</p>
+                      <p className="font-bold text-[13px] font-mono">{sku.skuCode}</p>
                       <FlagBadge type="stockout" />
                     </div>
-                    <p className="text-[11px] text-white/40 mt-0.5 truncate">{sku.productDescription}</p>
+                    <p className="text-[11px] mt-0.5 truncate" style={{ color: 'rgba(255,255,255,0.35)' }}>{sku.productDescription}</p>
                   </div>
-                  <button
-                    onClick={() => navigate(`/inventory/${sku.id}`)}
-                    className="flex-shrink-0 text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white hover:text-black transition-all"
-                  >
-                    View SKU
-                  </button>
+                  <button onClick={() => navigate(`/inventory/${sku.id}`)} className="btn-secondary text-[11px] shrink-0">View SKU</button>
                 </motion.div>
               ))}
 
@@ -282,70 +314,70 @@ export default function Dashboard() {
                 const snap = sku.latestSnapshot;
                 const daysLeft = Math.round(snap.daysInStock ?? 0);
                 const isCritical = snap.reorderStatus === 'CRITICAL';
+                const accent = isCritical ? '#F87171' : '#FB923C';
                 return (
                   <motion.div
                     key={sku.id}
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: i * 0.05 }}
-                    className={clsx(
-                      "bg-bg-card border p-4 rounded-xl flex items-center gap-4 hover:border-white/20 transition-all",
-                      isCritical ? 'border-critical/30' : 'border-amber-500/30'
-                    )}
+                    className="p-4 rounded-2xl flex items-center gap-4 transition-all duration-200 cursor-pointer group"
+                    style={{
+                      background: `${accent}08`,
+                      border: `1px solid ${accent}30`,
+                    }}
+                    onClick={() => navigate(`/inventory/${sku.id}`)}
                   >
-                    <div className={clsx(
-                      "w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0",
-                      isCritical ? 'bg-critical/10' : 'bg-amber-500/10'
-                    )}>
-                      <AlertTriangle className={clsx("w-4 h-4", isCritical ? 'text-critical' : 'text-amber-400')} />
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${accent}15` }}>
+                      <AlertTriangle className="w-4 h-4" style={{ color: accent }} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="font-bold text-sm font-mono">{sku.skuCode}</p>
-                        <span className={clsx(
-                          "px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-tight border",
-                          isCritical ? 'bg-critical/10 text-critical border-critical/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                        )}>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-bold text-[13px] font-mono">{sku.skuCode}</p>
+                        <span
+                          className="text-[9px] font-bold uppercase tracking-[0.06em] px-2 py-0.5 rounded"
+                          style={{ background: `${accent}15`, color: accent, border: `1px solid ${accent}30` }}
+                        >
                           {isCritical ? 'Critical' : 'Reorder Soon'}
                         </span>
                       </div>
-                      <div className="flex items-center gap-4 mt-1">
-                        <span className="text-[11px] text-white/40">{daysLeft}d remaining</span>
-                        <span className="text-[11px] text-white/40">{snap.availableQuantity?.toLocaleString()} units</span>
-                        <span className="text-[11px] text-white/40">{snap.velocity30d?.toFixed(1)} u/day</span>
+                      <div className="flex items-center gap-3 mt-1 flex-wrap">
+                        <span className="text-[11px]" style={{ color: 'rgba(255,255,255,0.4)' }}>{daysLeft}d remaining</span>
+                        <span className="text-[11px]" style={{ color: 'rgba(255,255,255,0.4)' }}>{snap.availableQuantity?.toLocaleString()} units</span>
+                        <span className="text-[11px]" style={{ color: 'rgba(255,255,255,0.4)' }}>{snap.velocity30d?.toFixed(1)} u/day</span>
                         {snap.oosDate && (
-                          <span className={clsx("text-[11px]", isCritical ? 'text-critical font-bold' : 'text-white/40')}>
+                          <span className="text-[11px] font-bold" style={{ color: isCritical ? '#F87171' : 'rgba(255,255,255,0.4)' }}>
                             OOS {format(new Date(snap.oosDate), 'MMM d')}
                           </span>
                         )}
                       </div>
                     </div>
-                    <button
-                      onClick={() => navigate(`/inventory/${sku.id}`)}
-                      className="flex-shrink-0 text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white hover:text-black transition-all"
-                    >
-                      View →
-                    </button>
+                    <ArrowRight className="w-4 h-4 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: 'rgba(255,255,255,0.4)' }} />
                   </motion.div>
                 );
               })}
 
-              {/* Dead stock flags */}
+              {/* Dead stock */}
               {deadStock.length > 0 && (
-                <div className="bg-bg-card border border-amber-500/20 p-4 rounded-xl">
+                <div
+                  className="p-4 rounded-2xl"
+                  style={{ background: 'rgba(251,146,60,0.05)', border: '1px solid rgba(251,146,60,0.18)' }}
+                >
                   <div className="flex items-center gap-2 mb-3">
-                    <TrendingDown className="text-amber-400 w-4 h-4" />
-                    <p className="text-sm font-bold text-amber-400">Dead Stock Detected</p>
-                    <span className="text-[10px] text-white/30">({deadStock.length} SKU{deadStock.length > 1 ? 's' : ''})</span>
+                    <TrendingDown className="w-4 h-4" style={{ color: '#FB923C' }} />
+                    <p className="text-[13px] font-bold" style={{ color: '#FB923C' }}>Dead Stock Detected</p>
+                    <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.3)' }}>({deadStock.length} SKU{deadStock.length > 1 ? 's' : ''})</span>
                   </div>
                   <div className="space-y-1.5">
                     {deadStock.map((sku: any) => (
-                      <div key={sku.id} className="flex items-center justify-between text-sm">
+                      <div key={sku.id} className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="font-mono text-white/70">{sku.skuCode}</span>
+                          <span className="font-mono text-[12px]" style={{ color: 'rgba(255,255,255,0.6)' }}>{sku.skuCode}</span>
                           <FlagBadge type="dead_stock" />
                         </div>
-                        <span className="text-white/40 text-xs font-mono">{sku.latestSnapshot.availableQuantity?.toLocaleString()} units · $0 velocity</span>
+                        <span className="text-[11px] font-mono" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                          {sku.latestSnapshot.availableQuantity?.toLocaleString()} units
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -355,25 +387,34 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Right column — Pipeline + Health */}
-        <div className="lg:col-span-2 space-y-6">
+        {/* Right column */}
+        <div className="lg:col-span-2 space-y-5">
 
-          {/* Portfolio Health Donut */}
-          <div className="bg-bg-card border border-border-subtle p-6 rounded-2xl">
-            <h3 className="text-base font-bold tracking-tight mb-4">Portfolio Health</h3>
+          {/* Portfolio Health */}
+          <div className="section-card p-5">
+            <div className="flex items-center gap-2.5 mb-4">
+              <TrendingUp className="w-4 h-4" style={{ color: 'rgba(255,255,255,0.3)' }} />
+              <h3 className="text-[14px] font-bold tracking-tight" style={{ color: '#F1F5F9' }}>Portfolio Health</h3>
+            </div>
             {healthBreakdown.length > 0 ? (
               <>
                 <div className="flex items-center gap-4">
-                  <div className="w-32 h-32 flex-shrink-0">
+                  <div className="w-28 h-28 shrink-0">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
-                        <Pie data={healthBreakdown} dataKey="count" cx="50%" cy="50%" innerRadius={30} outerRadius={55} paddingAngle={2}>
+                        <Pie data={healthBreakdown} dataKey="count" cx="50%" cy="50%" innerRadius={28} outerRadius={52} paddingAngle={3}>
                           {healthBreakdown.map((entry) => (
                             <Cell key={entry.status} fill={HEALTH_COLORS[entry.status]} />
                           ))}
                         </Pie>
                         <Tooltip
-                          contentStyle={{ background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, fontSize: 11 }}
+                          contentStyle={{
+                            background: '#0F1521',
+                            border: '1px solid rgba(255,255,255,0.08)',
+                            borderRadius: 10,
+                            fontSize: 11,
+                            boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+                          }}
                           formatter={(val: any, _: any, props: any) => [`${val} SKUs`, HEALTH_LABELS[props.payload.status]]}
                         />
                       </PieChart>
@@ -384,65 +425,79 @@ export default function Dashboard() {
                       <div key={status} className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <div className="w-2 h-2 rounded-full" style={{ backgroundColor: HEALTH_COLORS[status] }} />
-                          <span className="text-xs text-white/60">{HEALTH_LABELS[status]}</span>
+                          <span className="text-[12px]" style={{ color: 'rgba(255,255,255,0.55)' }}>{HEALTH_LABELS[status]}</span>
                         </div>
-                        <span className="text-xs font-bold font-mono">{count}</span>
+                        <span className="text-[12px] font-bold font-mono" style={{ color: '#F1F5F9' }}>{count}</span>
                       </div>
                     ))}
                   </div>
                 </div>
-                {/* Health bar */}
-                <div className="mt-4 h-2 rounded-full overflow-hidden flex gap-0.5">
+                <div className="mt-4 h-1.5 rounded-full overflow-hidden flex gap-0.5">
                   {healthBreakdown.map(({ status, count }) => (
                     <div
                       key={status}
-                      className="h-full rounded-sm transition-all"
-                      style={{
-                        width: `${(count / skus.length) * 100}%`,
-                        backgroundColor: HEALTH_COLORS[status]
-                      }}
+                      className="h-full rounded-full transition-all"
+                      style={{ width: `${(count / skus.length) * 100}%`, backgroundColor: HEALTH_COLORS[status] }}
                     />
                   ))}
                 </div>
-                <p className="text-[10px] text-white/30 mt-2 text-right">{skus.length} total SKUs</p>
+                <p className="text-[10px] mt-1.5 text-right" style={{ color: 'rgba(255,255,255,0.2)' }}>{skus.length} total SKUs</p>
               </>
             ) : (
-              <div className="text-center py-6 text-white/30 text-sm">No snapshot data yet — run a sync</div>
+              <div className="text-center py-6 text-[13px]" style={{ color: 'rgba(255,255,255,0.25)' }}>
+                No snapshot data yet — run a sync
+              </div>
             )}
           </div>
 
-          {/* Supply Chain Pipeline */}
-          <div className="bg-bg-card border border-border-subtle p-6 rounded-2xl space-y-4">
+          {/* Pipeline */}
+          <div className="section-card p-5 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold tracking-tight">Pipeline</h3>
-              <button onClick={() => navigate('/purchasing')} className="text-xs text-white/30 hover:text-white transition-colors">See all →</button>
-            </div>
-
-            {/* In transit */}
-            <div className="flex items-center justify-between py-2 border-b border-white/5">
-              <div className="flex items-center gap-2">
-                <Truck className="text-blue-400 w-4 h-4" />
-                <span className="text-sm text-white/70">In Transit</span>
+              <div className="flex items-center gap-2.5">
+                <Truck className="w-4 h-4" style={{ color: 'rgba(255,255,255,0.3)' }} />
+                <h3 className="text-[14px] font-bold tracking-tight" style={{ color: '#F1F5F9' }}>Pipeline</h3>
               </div>
-              <span className="font-mono font-bold text-sm">{inTransit.length} shipment{inTransit.length !== 1 ? 's' : ''}</span>
+              <button
+                onClick={() => navigate('/purchasing')}
+                className="text-[11px] transition-colors hover:opacity-80"
+                style={{ color: 'rgba(99,102,241,0.7)' }}
+              >
+                See all →
+              </button>
             </div>
 
-            {/* Upcoming arrivals */}
+            <div className="flex items-center justify-between py-2.5" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+              <div className="flex items-center gap-2">
+                <Truck className="w-3.5 h-3.5" style={{ color: '#60A5FA' }} />
+                <span className="text-[13px]" style={{ color: 'rgba(255,255,255,0.6)' }}>In Transit</span>
+              </div>
+              <span className="font-mono font-bold text-[13px]" style={{ color: '#F1F5F9' }}>
+                {inTransit.length} shipment{inTransit.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+
             {upcoming.length > 0 ? (
-              <div className="space-y-2">
-                <p className="text-[10px] text-white/30 uppercase font-bold tracking-widest">Arriving next 60 days</p>
+              <div className="space-y-2.5">
+                <p className="text-[10px] font-bold uppercase tracking-[0.1em]" style={{ color: 'rgba(255,255,255,0.25)' }}>
+                  Arriving next 60 days
+                </p>
                 {upcoming.slice(0, 5).map((po: any) => {
                   const days = differenceInDays(new Date(po.expectedArrival), now);
                   return (
                     <div key={po.id} className="flex items-center justify-between gap-3">
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-mono font-bold truncate">{po.poNumber}</p>
-                        <p className="text-[10px] text-white/30 truncate">{po.sku?.skuCode} · {po.orderQuantity?.toLocaleString()} units</p>
+                        <p className="text-[12px] font-mono font-bold truncate">{po.poNumber}</p>
+                        <p className="text-[10px] truncate mt-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                          {po.sku?.skuCode} · {po.orderQuantity?.toLocaleString()} units
+                        </p>
                       </div>
-                      <div className={clsx(
-                        "flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded font-mono",
-                        days <= 7 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-white/40'
-                      )}>
+                      <div
+                        className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded font-mono"
+                        style={{
+                          background: days <= 7 ? 'rgba(52,211,153,0.15)' : 'rgba(255,255,255,0.05)',
+                          color: days <= 7 ? '#34D399' : 'rgba(255,255,255,0.35)',
+                        }}
+                      >
                         {days}d
                       </div>
                     </div>
@@ -450,39 +505,51 @@ export default function Dashboard() {
                 })}
               </div>
             ) : (
-              <div className="text-center py-4 text-white/20 text-xs">No upcoming arrivals scheduled</div>
+              <div className="text-center py-3 text-[12px]" style={{ color: 'rgba(255,255,255,0.2)' }}>
+                No upcoming arrivals scheduled
+              </div>
             )}
 
-            {/* Overdue warning */}
             {overduePOs.length > 0 && (
-              <div className="pt-2 border-t border-white/5">
-                <div className="flex items-center gap-2 text-critical">
-                  <AlertTriangle className="w-3.5 h-3.5" />
-                  <p className="text-xs font-bold">{overduePOs.length} PO{overduePOs.length > 1 ? 's' : ''} overdue</p>
-                </div>
+              <div className="pt-3 flex items-center gap-2" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                <AlertTriangle className="w-3.5 h-3.5" style={{ color: '#F87171' }} />
+                <p className="text-[12px] font-bold" style={{ color: '#F87171' }}>
+                  {overduePOs.length} PO{overduePOs.length > 1 ? 's' : ''} overdue
+                </p>
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* Quick nav to full inventory */}
-      <div
+      {/* Full inventory nav */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
         onClick={() => navigate('/inventory')}
-        className="bg-bg-card border border-border-subtle p-5 rounded-2xl flex items-center justify-between cursor-pointer hover:border-white/20 group transition-all"
+        className="section-card p-4 flex items-center justify-between cursor-pointer group transition-all duration-200 hover:border-[rgba(99,102,241,0.25)]"
+        style={{ borderRadius: 16 }}
       >
         <div className="flex items-center gap-4">
-          <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center group-hover:bg-white/10 transition-colors">
-            <Package className="text-white/40 w-5 h-5" />
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center transition-colors duration-200 group-hover:bg-[rgba(99,102,241,0.15)]"
+            style={{ background: 'rgba(255,255,255,0.04)' }}
+          >
+            <Package className="w-[18px] h-[18px]" style={{ color: 'rgba(255,255,255,0.35)' }} />
           </div>
           <div>
-            <p className="font-bold text-sm">Full Inventory Report</p>
-            <p className="text-xs text-white/40">View all {skus.length} SKUs with health status, velocity, and OOS projections</p>
+            <p className="font-bold text-[13px]" style={{ color: '#F1F5F9' }}>Full Inventory Report</p>
+            <p className="text-[11px] mt-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>
+              View all {skus.length} SKUs with health, velocity &amp; OOS projections
+            </p>
           </div>
         </div>
-        <ArrowRight className="text-white/30 group-hover:text-white group-hover:translate-x-1 transition-all w-5 h-5" />
-      </div>
-
+        <ArrowRight
+          className="w-4 h-4 shrink-0 transition-all duration-200 group-hover:translate-x-1"
+          style={{ color: 'rgba(255,255,255,0.25)' }}
+        />
+      </motion.div>
     </div>
   );
 }

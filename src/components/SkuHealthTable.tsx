@@ -61,15 +61,19 @@ const columns = [
     header: 'Status',
     cell: info => {
       const status = info.getValue();
-      if (!status) return <span className="text-white/30">—</span>;
-      const colors = {
-        CRITICAL: 'bg-critical text-white',
-        REORDER_SOON: 'bg-reorder text-white',
-        MONITOR: 'bg-monitor text-white',
-        HEALTHY: 'bg-healthy text-white',
+      if (!status) return <span style={{ color: 'rgba(255,255,255,0.2)' }}>—</span>;
+      const styles: Record<string, { bg: string; color: string; border: string }> = {
+        CRITICAL:    { bg: 'rgba(248,113,113,0.12)', color: '#F87171', border: 'rgba(248,113,113,0.25)' },
+        REORDER_SOON:{ bg: 'rgba(251,146,60,0.12)',  color: '#FB923C', border: 'rgba(251,146,60,0.25)' },
+        MONITOR:     { bg: 'rgba(96,165,250,0.12)',  color: '#60A5FA', border: 'rgba(96,165,250,0.25)' },
+        HEALTHY:     { bg: 'rgba(52,211,153,0.12)',  color: '#34D399', border: 'rgba(52,211,153,0.25)' },
       };
+      const s = styles[status] ?? styles.MONITOR;
       return (
-        <span className={clsx("status-badge", colors[status])}>
+        <span
+          className="status-badge"
+          style={{ background: s.bg, color: s.color, border: `1px solid ${s.border}` }}
+        >
           {status.replace('_', ' ')}
         </span>
       );
@@ -101,41 +105,44 @@ export default function SkuHealthTable({ data }: { data: SkuHealthData[] }) {
   });
 
   return (
-    <div className="bg-bg-card rounded-2xl border border-border-subtle overflow-hidden">
-      <div className="p-4 border-b border-border-subtle flex items-center justify-between gap-4">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+    <div className="section-card overflow-hidden">
+      {/* Toolbar */}
+      <div
+        className="px-5 py-3.5 flex items-center justify-between gap-4"
+        style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}
+      >
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: 'rgba(255,255,255,0.25)' }} />
           <input
             type="text"
             value={globalFilter}
             onChange={e => setGlobalFilter(e.target.value)}
-            placeholder="Search SKUs or products..."
-            className="w-full bg-white/5 border border-border-subtle rounded-xl py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-white/10 transition-all"
+            placeholder="Search SKUs, products..."
+            className="input-field pl-9 py-2 text-[13px]"
           />
         </div>
-        <div className="flex items-center gap-2">
-          <button className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-border-subtle rounded-xl text-sm font-medium hover:bg-white/10 transition-all">
-            <Filter className="w-4 h-4" />
-            Filter
-          </button>
-        </div>
+        <button className="btn-secondary text-[12px] py-2">
+          <Filter className="w-3.5 h-3.5" />
+          Filter
+        </button>
       </div>
 
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
             {table.getHeaderGroups().map(headerGroup => (
-              <tr key={headerGroup.id}>
+              <tr key={headerGroup.id} style={{ background: 'rgba(255,255,255,0.02)' }}>
                 {headerGroup.headers.map(header => (
                   <th key={header.id} className="data-table-header">
                     <div
                       className={clsx(
-                        header.column.getCanSort() && "cursor-pointer select-none flex items-center gap-2 hover:text-white transition-colors"
+                        "flex items-center gap-1.5",
+                        header.column.getCanSort() && "cursor-pointer select-none hover:text-white/60 transition-colors"
                       )}
                       onClick={header.column.getToggleSortingHandler()}
                     >
                       {flexRender(header.column.columnDef.header, header.getContext())}
-                      {header.column.getCanSort() && <ArrowUpDown className="w-3 h-3" />}
+                      {header.column.getCanSort() && <ArrowUpDown className="w-3 h-3 opacity-40" />}
                     </div>
                   </th>
                 ))}
@@ -143,11 +150,14 @@ export default function SkuHealthTable({ data }: { data: SkuHealthData[] }) {
             ))}
           </thead>
           <tbody>
-            {table.getRowModel().rows.map(row => (
+            {table.getRowModel().rows.map((row, i) => (
               <tr
                 key={row.id}
                 onClick={() => navigate(`/inventory/${row.original.id}`)}
-                className="hover:bg-white/[0.04] transition-colors group cursor-pointer"
+                className="group cursor-pointer transition-colors duration-100"
+                style={{ background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(99,102,241,0.05)')}
+                onMouseLeave={e => (e.currentTarget.style.background = i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)')}
               >
                 {row.getVisibleCells().map(cell => (
                   <td key={cell.id} className="data-table-cell">
@@ -162,8 +172,9 @@ export default function SkuHealthTable({ data }: { data: SkuHealthData[] }) {
 
       {data.length === 0 && (
         <div className="py-20 text-center">
-          <Package className="w-12 h-12 text-white/10 mx-auto mb-4" />
-          <p className="text-white/50 font-medium">No SKU data available</p>
+          <Package className="w-12 h-12 mx-auto mb-4" style={{ color: 'rgba(255,255,255,0.07)' }} />
+          <p className="text-[14px] font-medium" style={{ color: 'rgba(255,255,255,0.3)' }}>No SKU data available</p>
+          <p className="text-[12px] mt-1" style={{ color: 'rgba(255,255,255,0.18)' }}>Add a SKU or run a Shopify sync to get started</p>
         </div>
       )}
     </div>
