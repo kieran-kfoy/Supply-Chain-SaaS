@@ -236,12 +236,16 @@ router.post('/sync', async (req: any, res) => {
 
     let updated = 0;
 
-    // Build a map of inventoryItemId → sellingPrice so we can update SKUs in Step 4
+    // Build maps of inventoryItemId → sellingPrice and barcode so we can update SKUs in Step 4
     const invItemPriceMap = new Map<string, number>();
+    const variantBarcodeMap = new Map<string, string>(); // variantId → barcode
     for (const product of products) {
       for (const variant of product.variants) {
         if (variant.inventory_item_id) {
           invItemPriceMap.set(String(variant.inventory_item_id), parseFloat(variant.price || '0'));
+        }
+        if (variant.barcode?.trim()) {
+          variantBarcodeMap.set(String(variant.id), variant.barcode.trim());
         }
       }
     }
@@ -315,6 +319,7 @@ router.post('/sync', async (req: any, res) => {
           where: { tenantId, skuCode: realSku },
         });
 
+        const variantBarcode = variant.barcode?.trim() || null;
         const sku = existingSku || await prisma.sku.create({
           data: {
             tenantId,
@@ -322,6 +327,7 @@ router.post('/sync', async (req: any, res) => {
             productDescription: description,
             unitCost: 0, // Will be updated in Step 4 with real Shopify "Cost per item"
             sellingPrice: parseFloat(variant.price || '0'),
+            barcodeUpc: variantBarcode,
             supplierId: shopifySupplier.id,
           },
         });
@@ -470,16 +476,18 @@ router.post('/sync', async (req: any, res) => {
         reorderStatus = 'MONITOR';
       }
 
-      // Sync real unit cost and selling price from Shopify onto the SKU
+      // Sync real unit cost, selling price, and barcode from Shopify onto the SKU
       const invItemId = variantToInvItem.get(listing.platformVariantId || '');
       const freshCost = invItemId ? costMap.get(sku.id) : undefined;
       const freshPrice = invItemId ? invItemPriceMap.get(invItemId) : undefined;
-      if (freshCost != null || freshPrice != null) {
+      const freshBarcode = variantBarcodeMap.get(listing.platformVariantId || '') || null;
+      if (freshCost != null || freshPrice != null || freshBarcode !== (sku.barcodeUpc || null)) {
         await prisma.sku.update({
           where: { id: sku.id },
           data: {
             ...(freshCost != null && { unitCost: freshCost }),
             ...(freshPrice != null && { sellingPrice: freshPrice }),
+            barcodeUpc: freshBarcode,
           },
         });
       }

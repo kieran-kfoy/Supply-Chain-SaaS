@@ -433,12 +433,16 @@ async function startServer() {
               include: { sku: true },
             });
 
-            // Build inventory item map
+            // Build inventory item map and barcode map
             const invItemToSku = new Map<string, string>();
+            const variantBarcodeMap = new Map<string, string>(); // variantId → barcode
             for (const product of products) {
               for (const variant of product.variants) {
                 const listing = trackedListings.find(l => l.platformVariantId === String(variant.id));
                 if (listing) invItemToSku.set(String(variant.inventory_item_id), listing.skuId);
+                if (variant.barcode?.trim()) {
+                  variantBarcodeMap.set(String(variant.id), variant.barcode.trim());
+                }
               }
             }
 
@@ -490,10 +494,19 @@ async function startServer() {
               }
             }
 
-            // Create snapshots
+            // Create snapshots and sync barcode
             for (const listing of trackedListings) {
               const sku = listing.sku;
               const onHand = stockMap.get(sku.id) ?? 0;
+
+              // Sync barcode from Shopify
+              const freshBarcode = variantBarcodeMap.get(listing.platformVariantId || '') || null;
+              if (freshBarcode !== (sku.barcodeUpc || null)) {
+                await prisma.sku.update({
+                  where: { id: sku.id },
+                  data: { barcodeUpc: freshBarcode },
+                });
+              }
               const sales = salesMap.get(listing.platformVariantId || '') || { sold7d: 0, sold30d: 0, sold90d: 0 };
               const v30 = sales.sold30d / 30;
               const v90 = sales.sold90d / 90;
