@@ -9,7 +9,8 @@ import {
   Settings,
   LogOut,
   AlertCircle,
-  Boxes
+  Boxes,
+  BarChart3
 } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
 import { clsx, type ClassValue } from 'clsx';
@@ -29,6 +30,7 @@ export default function Sidebar() {
     { icon: ShoppingCart, label: 'Purchasing', path: '/purchasing' },
     { icon: Truck, label: 'Finished Goods Log', path: '/inbound' },
     { icon: Users, label: 'Suppliers', path: '/suppliers' },
+    { icon: BarChart3, label: 'Reports', path: '/reports' },
   ];
 
   return (

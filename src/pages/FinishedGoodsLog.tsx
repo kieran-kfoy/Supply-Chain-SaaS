@@ -342,7 +342,7 @@ export default function FinishedGoodsLog() {
                       </label>
                       <button
                         onClick={() => setDeletingId(shipment.id)}
-                        className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-critical/20 text-white/40 hover:text-critical transition-all"
+                        className="p-1.5 rounded-lg hover:bg-critical/20 text-white/40 hover:text-critical transition-all"
                         title="Delete shipment"
                       >
                         <Trash2 size={13} />

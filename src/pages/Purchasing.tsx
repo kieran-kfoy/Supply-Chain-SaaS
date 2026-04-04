@@ -377,7 +377,7 @@ export default function Purchasing() {
                       {po.expectedArrival ? format(new Date(po.expectedArrival), 'MM/dd/yy') : 'TBD'}
                     </td>
                     <td className="data-table-cell">
-                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-2">
                         <button
                           onClick={() => setEditingPo(po)}
                           className="p-1.5 rounded-lg hover:bg-white/10 text-white/40 hover:text-white transition-all"

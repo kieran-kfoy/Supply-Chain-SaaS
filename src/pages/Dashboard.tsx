@@ -26,13 +26,17 @@ const HEALTH_LABELS: Record<string, string> = {
   HEALTHY: 'Healthy',
 };
 
-function StatCard({ label, value, sub, icon: Icon, color, delay }: any) {
+function StatCard({ label, value, sub, icon: Icon, color, delay, onClick }: any) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay }}
-      className="bg-bg-card border border-border-subtle p-6 rounded-2xl space-y-4"
+      className={clsx(
+        "bg-bg-card border border-border-subtle p-6 rounded-2xl space-y-4",
+        onClick && "cursor-pointer hover:border-white/20 transition-all"
+      )}
+      onClick={onClick}
     >
       <div className="flex items-center justify-between">
         <div className={clsx("w-10 h-10 rounded-xl flex items-center justify-center", color.bg)}>
@@ -171,6 +175,7 @@ export default function Dashboard() {
           icon={DollarSign}
           color={{ bg: 'bg-emerald-500/10', icon: 'text-emerald-400' }}
           delay={0}
+          onClick={() => navigate('/reports')}
         />
         <StatCard
           label="Capital on Order"
