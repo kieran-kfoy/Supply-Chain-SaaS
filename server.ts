@@ -441,16 +441,44 @@ async function startServer() {
   // Reorder Queue
   app.get("/api/v1/inventory/reorder-queue", authenticate, async (req: any, res) => {
     const tenantId = req.user.tenantId;
-    const snapshots = await prisma.inventorySnapshot.findMany({
-      where: { 
-        tenantId,
-        reorderStatus: { in: ["CRITICAL", "REORDER_SOON"] }
-      },
+    // Get latest snapshot per SKU — include any that are CRITICAL, REORDER_SOON,
+    // or within 15 days of their order trigger threshold
+    const allSnapshots = await prisma.inventorySnapshot.findMany({
+      where: { tenantId },
       include: { sku: true },
-      orderBy: { daysUntilReorder: 'asc' }
+      orderBy: { snapshotDate: 'desc' }
     });
 
-    res.json({ success: true, data: snapshots });
+    // Deduplicate: keep only the latest snapshot per SKU
+    const seen = new Set<string>();
+    const latestSnapshots = allSnapshots.filter(snap => {
+      if (seen.has(snap.skuId)) return false;
+      seen.add(snap.skuId);
+      return true;
+    });
+
+    // Filter: show if CRITICAL/REORDER_SOON, or within 15 days of order trigger
+    const UPCOMING_WINDOW = 15;
+    const filtered = latestSnapshots.filter(snap => {
+      if (snap.reorderStatus === 'CRITICAL' || snap.reorderStatus === 'REORDER_SOON') return true;
+      const daysToOrder = snap.daysInStock - snap.sku.orderTriggerDays;
+      return daysToOrder <= UPCOMING_WINDOW && snap.velocity30d > 0;
+    });
+
+    // Sort by urgency (most urgent first)
+    filtered.sort((a, b) => a.daysUntilReorder - b.daysUntilReorder);
+
+    const data = filtered.map(snap => {
+      const velocity = snap.velocity30d > 0 ? snap.velocity30d : snap.velocity90d;
+      const suggestedOrderQty = velocity > 0
+        ? Math.max(0, Math.ceil((snap.sku.daysToOrderTarget * velocity) - snap.availableQuantity))
+        : 0;
+      const json = JSON.parse(JSON.stringify(snap));
+      json.suggestedOrderQty = suggestedOrderQty;
+      return json;
+    });
+
+    res.json({ success: true, data });
   });
 
   // Purchase Orders — single line (legacy)
