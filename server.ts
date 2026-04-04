@@ -94,8 +94,9 @@ async function startServer() {
   // Inventory SKUs
   app.get("/api/v1/inventory/skus", authenticate, async (req: any, res) => {
     const tenantId = req.user.tenantId;
+    const includeAll = req.query.includeAll === 'true';
     const skus = await prisma.sku.findMany({
-      where: { tenantId, isActive: true },
+      where: { tenantId, isActive: true, ...(includeAll ? {} : { isBundle: false }) },
       include: {
         supplier: true,
         snapshots: {
@@ -252,6 +253,134 @@ async function startServer() {
       res.json({ success: true, data: shipments });
     } catch (err) {
       res.status(500).json({ success: false, error: "Failed to log shipments" });
+    }
+  });
+
+  // ─── Bundles ──────────────────────────────────────────────────────────────────
+
+  // List all bundles
+  app.get("/api/v1/bundles", authenticate, async (req: any, res) => {
+    const tenantId = req.user.tenantId;
+    try {
+      const bundles = await prisma.bundle.findMany({
+        where: { tenantId },
+        include: {
+          sku: {
+            include: {
+              snapshots: { orderBy: { snapshotDate: 'desc' }, take: 1 }
+            }
+          },
+          components: {
+            include: { sku: true }
+          }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+      res.json({
+        success: true,
+        data: bundles.map(b => ({
+          ...b,
+          shopifyInventory: b.sku.snapshots[0]?.onHandQuantity ?? 0
+        }))
+      });
+    } catch (err) {
+      res.status(500).json({ success: false, error: "Failed to fetch bundles" });
+    }
+  });
+
+  // Create a bundle
+  app.post("/api/v1/bundles", authenticate, async (req: any, res) => {
+    const tenantId = req.user.tenantId;
+    const { skuId, notes, components } = req.body;
+
+    try {
+      // Mark the SKU as a bundle
+      await prisma.sku.update({
+        where: { id: skuId },
+        data: { isBundle: true }
+      });
+
+      const bundle = await prisma.bundle.create({
+        data: {
+          tenantId,
+          skuId,
+          notes,
+          components: {
+            create: components.map((c: { skuId: string; quantity: number }) => ({
+              skuId: c.skuId,
+              quantity: c.quantity,
+            }))
+          }
+        },
+        include: {
+          sku: true,
+          components: { include: { sku: true } }
+        }
+      });
+
+      res.json({ success: true, data: bundle });
+    } catch (err) {
+      res.status(500).json({ success: false, error: "Failed to create bundle" });
+    }
+  });
+
+  // Update a bundle (replace components)
+  app.put("/api/v1/bundles/:id", authenticate, async (req: any, res) => {
+    const tenantId = req.user.tenantId;
+    const { notes, components } = req.body;
+
+    try {
+      // Delete existing components and recreate
+      await prisma.bundleComponent.deleteMany({ where: { bundleId: req.params.id } });
+
+      const bundle = await prisma.bundle.update({
+        where: { id: req.params.id },
+        data: {
+          notes,
+          components: {
+            create: components.map((c: { skuId: string; quantity: number }) => ({
+              skuId: c.skuId,
+              quantity: c.quantity,
+            }))
+          }
+        },
+        include: {
+          sku: true,
+          components: { include: { sku: true } }
+        }
+      });
+
+      res.json({ success: true, data: bundle });
+    } catch (err) {
+      res.status(500).json({ success: false, error: "Failed to update bundle" });
+    }
+  });
+
+  // Delete a bundle (unflag SKU so it returns to inventory)
+  app.delete("/api/v1/bundles/:id", authenticate, async (req: any, res) => {
+    const tenantId = req.user.tenantId;
+
+    try {
+      const bundle = await prisma.bundle.findFirst({
+        where: { id: req.params.id, tenantId }
+      });
+
+      if (!bundle) {
+        return res.status(404).json({ success: false, error: "Bundle not found" });
+      }
+
+      // Unflag the SKU
+      await prisma.sku.update({
+        where: { id: bundle.skuId },
+        data: { isBundle: false }
+      });
+
+      // Delete bundle (cascades to components)
+      await prisma.bundle.delete({ where: { id: bundle.id } });
+
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ success: false, error: "Failed to delete bundle" });
     }
   });
 

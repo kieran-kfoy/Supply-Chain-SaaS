@@ -419,6 +419,46 @@ router.post('/sync', async (req: any, res) => {
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
+    // Load bundles for order decomposition
+    // Maps: bundle skuId → array of { componentSkuId, quantity }
+    const bundlesForDecomp = await prisma.bundle.findMany({
+      where: { tenantId },
+      include: {
+        sku: true,
+        components: {
+          include: {
+            sku: {
+              include: {
+                channelListings: { where: { platform: 'shopify' } }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    // Build a map: bundle variantId → component entries with their variantIds and quantities
+    const bundleVariantMap = new Map<string, Array<{ variantId: string; quantity: number }>>();
+    for (const bundle of bundlesForDecomp) {
+      // Find the bundle SKU's Shopify variant ID
+      const bundleListing = trackedListings.find(l => l.skuId === bundle.skuId);
+      if (!bundleListing?.platformVariantId) continue;
+
+      const componentEntries: Array<{ variantId: string; quantity: number }> = [];
+      for (const comp of bundle.components) {
+        const compListing = comp.sku.channelListings[0];
+        if (compListing?.platformVariantId) {
+          componentEntries.push({
+            variantId: compListing.platformVariantId,
+            quantity: comp.quantity,
+          });
+        }
+      }
+      if (componentEntries.length > 0) {
+        bundleVariantMap.set(bundleListing.platformVariantId, componentEntries);
+      }
+    }
+
     const ordersRes = await fetch(
       `https://${shop}/admin/api/2024-01/orders.json?status=any&created_at_min=${ninetyDaysAgo.toISOString()}&limit=250&fields=id,created_at,line_items`,
       { headers: { 'X-Shopify-Access-Token': accessToken } }
@@ -427,6 +467,14 @@ router.post('/sync', async (req: any, res) => {
     // variantId → { sold7d, sold30d, sold90d }
     const salesMap = new Map<string, { sold7d: number; sold30d: number; sold90d: number }>();
 
+    const addSales = (vid: string, qty: number, orderDate: Date) => {
+      const existing = salesMap.get(vid) || { sold7d: 0, sold30d: 0, sold90d: 0 };
+      existing.sold90d += qty;
+      if (orderDate >= thirtyDaysAgo) existing.sold30d += qty;
+      if (orderDate >= sevenDaysAgo) existing.sold7d += qty;
+      salesMap.set(vid, existing);
+    };
+
     if (ordersRes.ok) {
       const { orders } = await ordersRes.json() as { orders: any[] };
       for (const order of orders) {
@@ -434,11 +482,16 @@ router.post('/sync', async (req: any, res) => {
         for (const item of order.line_items || []) {
           const vid = String(item.variant_id);
           const qty = item.quantity || 0;
-          const existing = salesMap.get(vid) || { sold7d: 0, sold30d: 0, sold90d: 0 };
-          existing.sold90d += qty;
-          if (orderDate >= thirtyDaysAgo) existing.sold30d += qty;
-          if (orderDate >= sevenDaysAgo) existing.sold7d += qty;
-          salesMap.set(vid, existing);
+
+          // Check if this variant is a bundle — decompose into components
+          const bundleComponents = bundleVariantMap.get(vid);
+          if (bundleComponents) {
+            for (const comp of bundleComponents) {
+              addSales(comp.variantId, qty * comp.quantity, orderDate);
+            }
+          } else {
+            addSales(vid, qty, orderDate);
+          }
         }
       }
     }

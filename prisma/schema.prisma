@@ -26,6 +26,7 @@ model Tenant {
   integrations      Integration[]
   alerts            Alert[]
   channelListings   ChannelListing[]
+  bundles           Bundle[]
 }
 
 model User {
@@ -54,12 +55,15 @@ model Sku {
   supplierId         String
   supplier           Supplier @relation(fields: [supplierId], references: [id])
   isActive           Boolean  @default(true)
+  isBundle           Boolean  @default(false)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
   snapshots          InventorySnapshot[]
   purchaseOrders     PurchaseOrder[]
   shipments          Shipment[]
   channelListings    ChannelListing[]
+  bundle             Bundle?
+  bundleComponents   BundleComponent[]
 
   @@unique([tenantId, skuCode])
 }
@@ -199,4 +203,27 @@ model ChannelListing {
 
   // One SKU can only have one listing per platform
   @@unique([skuId, platform])
+}
+
+model Bundle {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  skuId       String   @unique
+  sku         Sku      @relation(fields: [skuId], references: [id])
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  components  BundleComponent[]
+}
+
+model BundleComponent {
+  id        String @id @default(cuid())
+  bundleId  String
+  bundle    Bundle @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  skuId     String
+  sku       Sku    @relation(fields: [skuId], references: [id])
+  quantity  Int    @default(1)
+
+  @@unique([bundleId, skuId])
 }

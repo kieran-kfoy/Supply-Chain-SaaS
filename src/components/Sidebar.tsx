@@ -1,14 +1,15 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  Package, 
-  ShoppingCart, 
-  Truck, 
-  Users, 
-  Settings, 
+import {
+  LayoutDashboard,
+  Package,
+  ShoppingCart,
+  Truck,
+  Users,
+  Settings,
   LogOut,
-  AlertCircle
+  AlertCircle,
+  Boxes
 } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
 import { clsx, type ClassValue } from 'clsx';
@@ -24,6 +25,7 @@ export default function Sidebar() {
   const navItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
     { icon: Package, label: 'Inventory', path: '/inventory' },
+    { icon: Boxes, label: 'Bundles', path: '/bundles' },
     { icon: ShoppingCart, label: 'Purchasing', path: '/purchasing' },
     { icon: Truck, label: 'Finished Goods Log', path: '/inbound' },
     { icon: Users, label: 'Suppliers', path: '/suppliers' },
