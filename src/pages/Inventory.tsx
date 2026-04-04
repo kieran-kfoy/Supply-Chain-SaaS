@@ -7,6 +7,17 @@ import CreateSkuModal from '../components/CreateSkuModal';
 import { Package, Search, Filter, Download } from 'lucide-react';
 import { motion } from 'motion/react';
 
+function downloadCsv(filename: string, headers: string[], rows: string[][]) {
+  const csv = [headers.join(','), ...rows.map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(','))].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function Inventory() {
   const token = useAuthStore((state) => state.token);
   const [isModalOpen, setIsModalOpen] = React.useState(false);
@@ -21,6 +32,21 @@ export default function Inventory() {
     }
   });
 
+  const handleExport = () => {
+    if (!skus?.length) return;
+    const headers = ['SKU Code', 'Description', 'Available Qty', 'Unit Cost', 'Selling Price', 'Reorder Status', 'Active'];
+    const rows = skus.map((s: any) => [
+      s.skuCode,
+      s.productDescription,
+      s.latestSnapshot?.availableQuantity ?? 0,
+      s.unitCost ?? 0,
+      s.sellingPrice ?? 0,
+      s.latestSnapshot?.reorderStatus ?? 'N/A',
+      s.isActive ? 'Yes' : 'No',
+    ]);
+    downloadCsv('inventory-export.csv', headers, rows);
+  };
+
   return (
     <div className="p-8 space-y-8 max-w-7xl mx-auto">
       <header className="flex items-center justify-between">
@@ -32,11 +58,14 @@ export default function Inventory() {
           <p className="text-white/50 mt-1">Monitor stock levels and reorder statuses</p>
         </motion.div>
         <div className="flex items-center gap-3">
-          <button className="flex items-center gap-2 bg-white/5 border border-border-subtle px-4 py-2 rounded-xl text-sm font-medium hover:bg-white/10 transition-all">
+          <button
+            onClick={handleExport}
+            className="flex items-center gap-2 bg-white/5 border border-border-subtle px-4 py-2 rounded-xl text-sm font-medium hover:bg-white/10 transition-all"
+          >
             <Download size={16} />
             Export CSV
           </button>
-          <button 
+          <button
             onClick={() => setIsModalOpen(true)}
             className="bg-white text-black px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-white/90 transition-all"
           >

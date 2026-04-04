@@ -1,8 +1,9 @@
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
-import { AlertTriangle, CheckCircle2, Clock, Plus, Pencil, Trash2, X, Loader2, ArrowUpDown } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, Plus, Pencil, Trash2, X, Loader2, ArrowUpDown, Search, Download } from 'lucide-react';
 import { motion } from 'motion/react';
 import { format } from 'date-fns';
 import { clsx } from 'clsx';
@@ -34,6 +35,17 @@ function sortPos(list: any[], key: PoSortKey, dir: SortDir) {
     if (va > vb) return dir === 'asc' ? 1 : -1;
     return 0;
   });
+}
+
+function downloadCsv(filename: string, headers: string[], rows: string[][]) {
+  const csv = [headers.join(','), ...rows.map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(','))].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 function SortHeader({ label, sortKey, currentKey, currentDir, onSort }: {
@@ -140,12 +152,14 @@ function EditPoModal({ po, onClose }: { po: any; onClose: () => void }) {
 export default function Purchasing() {
   const token = useAuthStore((state) => state.token);
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [editingPo, setEditingPo] = React.useState<any>(null);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
   const [view, setView] = React.useState<'open' | 'closed'>('open');
   const [sortKey, setSortKey] = React.useState<PoSortKey | null>(null);
   const [sortDir, setSortDir] = React.useState<SortDir>('asc');
+  const [search, setSearch] = React.useState('');
 
   const handleSort = (key: PoSortKey) => {
     if (sortKey === key) {
@@ -198,8 +212,37 @@ export default function Purchasing() {
 
   const openPos = pos?.filter((p: any) => OPEN_STATUSES.includes(p.status)) ?? [];
   const closedPos = pos?.filter((p: any) => CLOSED_STATUSES.includes(p.status)) ?? [];
-  const displayed = view === 'open' ? openPos : closedPos;
-  const sorted = sortKey ? sortPos(displayed, sortKey, sortDir) : displayed;
+  const viewPos = view === 'open' ? openPos : closedPos;
+
+  const filtered = viewPos.filter((p: any) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (
+      p.poNumber?.toLowerCase().includes(q) ||
+      p.sku?.skuCode?.toLowerCase().includes(q) ||
+      p.sku?.productDescription?.toLowerCase().includes(q) ||
+      p.supplier?.name?.toLowerCase().includes(q) ||
+      p.status?.toLowerCase().includes(q)
+    );
+  });
+
+  const sorted = sortKey ? sortPos(filtered, sortKey, sortDir) : filtered;
+
+  const handleExport = () => {
+    if (!pos?.length) return;
+    const headers = ['PO #', 'Date Submitted', 'SKU', 'Description', 'Quantity', 'Supplier', 'Status', 'Expected Arrival'];
+    const rows = pos.map((p: any) => [
+      p.poNumber,
+      p.createdAt ? format(new Date(p.createdAt), 'MM/dd/yy') : 'N/A',
+      p.sku?.skuCode ?? '',
+      p.sku?.productDescription ?? '',
+      p.orderQuantity,
+      p.supplier?.name ?? '',
+      p.status,
+      p.expectedArrival ? format(new Date(p.expectedArrival), 'MM/dd/yy') : 'TBD',
+    ]);
+    downloadCsv('purchase-orders-export.csv', headers, rows);
+  };
 
   return (
     <div className="p-8 space-y-8 max-w-7xl mx-auto">
@@ -208,13 +251,22 @@ export default function Purchasing() {
           <h2 className="text-3xl font-bold tracking-tight">Purchasing & Procurement</h2>
           <p className="text-white/50 mt-1">Manage purchase orders and reorder triggers</p>
         </motion.div>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="bg-white text-black px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-white/90 transition-all flex items-center gap-2"
-        >
-          <Plus size={18} />
-          Create New PO
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleExport}
+            className="flex items-center gap-2 bg-white/5 border border-border-subtle px-4 py-2 rounded-xl text-sm font-medium hover:bg-white/10 transition-all"
+          >
+            <Download size={16} />
+            Export CSV
+          </button>
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="bg-white text-black px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-white/90 transition-all flex items-center gap-2"
+          >
+            <Plus size={18} />
+            Create New PO
+          </button>
+        </div>
       </header>
 
       <CreatePoModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
@@ -268,6 +320,18 @@ export default function Purchasing() {
             </button>
           </div>
 
+          {/* Search bar */}
+          <div className="relative max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search POs, SKUs, suppliers..."
+              className="w-full bg-white/5 border border-border-subtle rounded-xl py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-white/10 transition-all"
+            />
+          </div>
+
           {/* PO Table — Column order: PO #, Date Submitted, SKU, Quantity, Supplier, Status, Expected */}
           <div className="bg-bg-card border border-border-subtle rounded-2xl overflow-hidden">
             <table className="w-full text-left border-collapse">
@@ -291,7 +355,10 @@ export default function Purchasing() {
                       {po.createdAt ? format(new Date(po.createdAt), 'MM/dd/yy') : 'N/A'}
                     </td>
                     <td className="data-table-cell">
-                      <div className="flex flex-col">
+                      <div
+                        className="flex flex-col cursor-pointer hover:text-blue-400 transition-colors"
+                        onClick={() => navigate(`/inventory/${po.skuId}`)}
+                      >
                         <span className="font-mono text-xs">{po.sku?.skuCode}</span>
                         <span className="text-[10px] text-white/40 truncate max-w-[120px]">{po.sku?.productDescription}</span>
                       </div>

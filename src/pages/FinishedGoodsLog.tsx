@@ -1,8 +1,9 @@
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
-import { Truck, CheckCircle2, AlertCircle, Plus, Trash2, Loader2, ArrowUpDown } from 'lucide-react';
+import { Truck, CheckCircle2, AlertCircle, Plus, Trash2, Loader2, ArrowUpDown, Search, Download } from 'lucide-react';
 import { motion } from 'motion/react';
 import { format } from 'date-fns';
 import { clsx } from 'clsx';
@@ -28,6 +29,17 @@ function sortShipments(list: any[], key: SortKey, dir: SortDir) {
   });
 }
 
+function downloadCsv(filename: string, headers: string[], rows: string[][]) {
+  const csv = [headers.join(','), ...rows.map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(','))].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 function SortHeader({ label, sortKey, currentKey, currentDir, onSort }: {
   label: string; sortKey: SortKey; currentKey: SortKey | null; currentDir: SortDir; onSort: (k: SortKey) => void;
 }) {
@@ -47,11 +59,13 @@ function SortHeader({ label, sortKey, currentKey, currentDir, onSort }: {
 export default function FinishedGoodsLog() {
   const token = useAuthStore((state) => state.token);
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
   const [view, setView] = React.useState<'open' | 'closed'>('open');
   const [sortKey, setSortKey] = React.useState<SortKey | null>(null);
   const [sortDir, setSortDir] = React.useState<SortDir>('asc');
+  const [search, setSearch] = React.useState('');
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -121,8 +135,36 @@ export default function FinishedGoodsLog() {
 
   const openShipments = shipments?.filter((s: any) => !s.received) ?? [];
   const closedShipments = shipments?.filter((s: any) => s.received) ?? [];
-  const displayed = view === 'open' ? openShipments : closedShipments;
-  const sorted = sortKey ? sortShipments(displayed, sortKey, sortDir) : displayed;
+  const viewShipments = view === 'open' ? openShipments : closedShipments;
+
+  const filtered = viewShipments.filter((s: any) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (
+      s.sku?.skuCode?.toLowerCase().includes(q) ||
+      s.sku?.productDescription?.toLowerCase().includes(q) ||
+      s.trackingNumber?.toLowerCase().includes(q) ||
+      s.po?.poNumber?.toLowerCase().includes(q)
+    );
+  });
+
+  const sorted = sortKey ? sortShipments(filtered, sortKey, sortDir) : filtered;
+
+  const handleExport = () => {
+    if (!shipments?.length) return;
+    const headers = ['Ship Date', 'PO #', 'SKU', 'Description', 'Units', 'Tracking', 'Status', 'Received'];
+    const rows = shipments.map((s: any) => [
+      format(new Date(s.shipDate), 'MM/dd/yy'),
+      s.po?.poNumber ?? 'N/A',
+      s.sku?.skuCode ?? '',
+      s.sku?.productDescription ?? '',
+      s.unitsShipped,
+      s.trackingNumber ?? '',
+      s.received ? 'Received' : 'In Transit',
+      s.received ? 'Yes' : 'No',
+    ]);
+    downloadCsv('shipments-export.csv', headers, rows);
+  };
 
   return (
     <div className="p-8 space-y-8 max-w-7xl mx-auto">
@@ -131,13 +173,22 @@ export default function FinishedGoodsLog() {
           <h2 className="text-3xl font-bold tracking-tight">Finished Goods Shipping Log</h2>
           <p className="text-white/50 mt-1">Track production completion and warehouse transit</p>
         </motion.div>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="bg-white text-black px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-white/90 transition-all flex items-center gap-2"
-        >
-          <Plus size={18} />
-          Log New Shipment
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleExport}
+            className="flex items-center gap-2 bg-white/5 border border-border-subtle px-4 py-2 rounded-xl text-sm font-medium hover:bg-white/10 transition-all"
+          >
+            <Download size={16} />
+            Export CSV
+          </button>
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="bg-white text-black px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-white/90 transition-all flex items-center gap-2"
+          >
+            <Plus size={18} />
+            Log New Shipment
+          </button>
+        </div>
       </header>
 
       <LogShipmentModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
@@ -218,6 +269,18 @@ export default function FinishedGoodsLog() {
         </button>
       </div>
 
+      {/* Search bar */}
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search shipments, tracking, SKUs..."
+          className="w-full bg-white/5 border border-border-subtle rounded-xl py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-white/10 transition-all"
+        />
+      </div>
+
       {/* Shipment Table — Column order: Ship Date, PO #, SKU, Units, Tracking, Status, Received? */}
       <div className="bg-bg-card border border-border-subtle rounded-2xl overflow-hidden">
         <div className="overflow-x-auto">
@@ -241,7 +304,10 @@ export default function FinishedGoodsLog() {
                   </td>
                   <td className="data-table-cell font-mono text-white/80">{shipment.po?.poNumber ?? 'N/A'}</td>
                   <td className="data-table-cell">
-                    <div className="flex flex-col">
+                    <div
+                      className="flex flex-col cursor-pointer hover:text-blue-400 transition-colors"
+                      onClick={() => navigate(`/inventory/${shipment.skuId}`)}
+                    >
                       <span className="font-mono text-xs">{shipment.sku.skuCode}</span>
                       <span className="text-[10px] text-white/40 truncate max-w-[120px]">{shipment.sku.productDescription}</span>
                     </div>
