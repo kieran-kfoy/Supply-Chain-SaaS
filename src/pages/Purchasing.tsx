@@ -3,11 +3,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
-import { AlertTriangle, CheckCircle2, Clock, Plus, Pencil, Trash2, X, Loader2, ArrowUpDown, Search, Download } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, Plus, Pencil, Trash2, X, Loader2, ArrowUpDown, Search, Download, FileDown } from 'lucide-react';
 import { motion } from 'motion/react';
 import { format } from 'date-fns';
 import { clsx } from 'clsx';
 import CreatePoModal from '../components/CreatePoModal';
+import { generatePoPdf } from '../utils/generatePoPdf';
 
 const PO_STATUSES = ['OPEN', 'IN PRODUCTION', 'SHIPPED', 'RECEIVED', 'COMPLETE'];
 const OPEN_STATUSES = ['OPEN', 'IN PRODUCTION', 'SHIPPED'];
@@ -228,6 +229,13 @@ export default function Purchasing() {
 
   const sorted = sortKey ? sortPos(filtered, sortKey, sortDir) : filtered;
 
+  const handleDownloadPo = (poNumber: string) => {
+    if (!pos?.length) return;
+    const lineItems = pos.filter((p: any) => p.poNumber === poNumber);
+    if (lineItems.length === 0) return;
+    generatePoPdf(poNumber, lineItems);
+  };
+
   const handleExport = () => {
     if (!pos?.length) return;
     const headers = ['PO #', 'Date Submitted', 'SKU', 'Description', 'Quantity', 'Supplier', 'Status', 'Expected Arrival'];
@@ -378,6 +386,13 @@ export default function Purchasing() {
                     </td>
                     <td className="data-table-cell">
                       <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleDownloadPo(po.poNumber)}
+                          className="p-1.5 rounded-lg hover:bg-blue-500/20 text-white/40 hover:text-blue-400 transition-all"
+                          title="Download PO as PDF"
+                        >
+                          <FileDown size={14} />
+                        </button>
                         <button
                           onClick={() => setEditingPo(po)}
                           className="p-1.5 rounded-lg hover:bg-white/10 text-white/40 hover:text-white transition-all"

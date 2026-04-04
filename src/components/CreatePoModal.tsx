@@ -20,7 +20,6 @@ export default function CreatePoModal({ isOpen, onClose }: CreatePoModalProps) {
   const [poNumber, setPoNumber] = React.useState('');
   const [supplierId, setSupplierId] = React.useState('');
   const [notes, setNotes] = React.useState('');
-  const [packagingOrdered, setPackagingOrdered] = React.useState(false);
   const [lineItems, setLineItems] = React.useState<LineItem[]>([{ skuId: '', orderQuantity: '' }]);
 
   const { data: skus } = useQuery({
@@ -62,7 +61,6 @@ export default function CreatePoModal({ isOpen, onClose }: CreatePoModalProps) {
     setPoNumber('');
     setSupplierId('');
     setNotes('');
-    setPackagingOrdered(false);
     setLineItems([{ skuId: '', orderQuantity: '' }]);
   };
 
@@ -72,7 +70,6 @@ export default function CreatePoModal({ isOpen, onClose }: CreatePoModalProps) {
         poNumber,
         supplierId,
         notes,
-        packagingOrdered,
         lineItems: lineItems.map(li => ({
           skuId: li.skuId,
           orderQuantity: parseInt(li.orderQuantity),
@@ -192,27 +189,15 @@ export default function CreatePoModal({ isOpen, onClose }: CreatePoModalProps) {
             </div>
           </div>
 
-          {/* Notes & Packaging */}
-          <div className="grid grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-widest text-white/30 ml-1">Notes</label>
-              <textarea
-                value={notes}
-                onChange={e => setNotes(e.target.value)}
-                placeholder="Internal notes..."
-                className="w-full bg-white/5 border border-border-subtle rounded-xl py-3 px-4 text-white focus:outline-none focus:ring-2 focus:ring-white/10 transition-all min-h-[80px]"
-              />
-            </div>
-            <div className="flex items-start gap-3 pt-8">
-              <input
-                type="checkbox"
-                id="packaging"
-                checked={packagingOrdered}
-                onChange={e => setPackagingOrdered(e.target.checked)}
-                className="w-5 h-5 rounded border-border-subtle bg-white/5 text-white focus:ring-white/10 mt-0.5"
-              />
-              <label htmlFor="packaging" className="text-sm font-medium text-white/70">Packaging Ordered</label>
-            </div>
+          {/* PO Notes */}
+          <div className="space-y-2">
+            <label className="text-xs font-bold uppercase tracking-widest text-white/30 ml-1">PO Notes</label>
+            <textarea
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="Add notes to this purchase order (will appear on the PO document)..."
+              className="w-full bg-white/5 border border-border-subtle rounded-xl py-3 px-4 text-white focus:outline-none focus:ring-2 focus:ring-white/10 transition-all min-h-[80px]"
+            />
           </div>
 
           <div className="pt-4">
