@@ -105,7 +105,7 @@ export default function Dashboard() {
 
   // Capital metrics
   const inventoryValue = skusWithSnapshot.reduce((sum: number, s: any) =>
-    sum + (s.latestSnapshot.availableQuantity ?? 0) * (s.sellingPrice ?? 0), 0);
+    sum + (s.latestSnapshot.availableQuantity ?? 0) * (s.unitCost ?? 0), 0);
 
   const openPOs = pos.filter((p: any) => p.status === 'OPEN' || p.status === 'IN PRODUCTION' || p.status === 'SHIPPED');
   const capitalOnOrder = openPOs.reduce((sum: number, p: any) =>
@@ -165,9 +165,9 @@ export default function Dashboard() {
       {/* Stat Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
         <StatCard
-          label="Inventory Value"
+          label="Inventory Cost (COGS)"
           value={fmt$(inventoryValue)}
-          sub="Total stock on hand (retail)"
+          sub="Total stock on hand (at cost)"
           icon={DollarSign}
           color={{ bg: 'bg-emerald-500/10', icon: 'text-emerald-400' }}
           delay={0}

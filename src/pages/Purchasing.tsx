@@ -2,7 +2,7 @@ import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { useAuthStore } from '../store/useAuthStore';
-import { ShoppingCart, AlertTriangle, Calendar, CheckCircle2, Clock, Plus, Pencil, Trash2, X, Loader2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, Plus, Pencil, Trash2, X, Loader2, ArrowUpDown } from 'lucide-react';
 import { motion } from 'motion/react';
 import { format } from 'date-fns';
 import { clsx } from 'clsx';
@@ -11,6 +11,46 @@ import CreatePoModal from '../components/CreatePoModal';
 const PO_STATUSES = ['OPEN', 'IN PRODUCTION', 'SHIPPED', 'RECEIVED', 'COMPLETE'];
 const OPEN_STATUSES = ['OPEN', 'IN PRODUCTION', 'SHIPPED'];
 const CLOSED_STATUSES = ['RECEIVED', 'COMPLETE'];
+
+type PoSortKey = 'poNumber' | 'createdAt' | 'skuCode' | 'orderQuantity' | 'supplier' | 'status' | 'expectedArrival';
+type SortDir = 'asc' | 'desc';
+
+function sortPos(list: any[], key: PoSortKey, dir: SortDir) {
+  return [...list].sort((a, b) => {
+    let va: any, vb: any;
+    switch (key) {
+      case 'poNumber': va = a.poNumber ?? ''; vb = b.poNumber ?? ''; break;
+      case 'createdAt': va = new Date(a.createdAt).getTime(); vb = new Date(b.createdAt).getTime(); break;
+      case 'skuCode': va = a.sku?.skuCode ?? ''; vb = b.sku?.skuCode ?? ''; break;
+      case 'orderQuantity': va = a.orderQuantity; vb = b.orderQuantity; break;
+      case 'supplier': va = a.supplier?.name ?? ''; vb = b.supplier?.name ?? ''; break;
+      case 'status': va = a.status; vb = b.status; break;
+      case 'expectedArrival':
+        va = a.expectedArrival ? new Date(a.expectedArrival).getTime() : Infinity;
+        vb = b.expectedArrival ? new Date(b.expectedArrival).getTime() : Infinity;
+        break;
+    }
+    if (va < vb) return dir === 'asc' ? -1 : 1;
+    if (va > vb) return dir === 'asc' ? 1 : -1;
+    return 0;
+  });
+}
+
+function SortHeader({ label, sortKey, currentKey, currentDir, onSort }: {
+  label: string; sortKey: PoSortKey; currentKey: PoSortKey | null; currentDir: SortDir; onSort: (k: PoSortKey) => void;
+}) {
+  return (
+    <th className="data-table-header">
+      <div
+        className="cursor-pointer select-none flex items-center gap-2 hover:text-white transition-colors"
+        onClick={() => onSort(sortKey)}
+      >
+        {label}
+        <ArrowUpDown className={clsx("w-3 h-3", currentKey === sortKey ? 'text-white' : 'text-white/20')} />
+      </div>
+    </th>
+  );
+}
 
 function EditPoModal({ po, onClose }: { po: any; onClose: () => void }) {
   const token = useAuthStore((state) => state.token);
@@ -104,6 +144,17 @@ export default function Purchasing() {
   const [editingPo, setEditingPo] = React.useState<any>(null);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
   const [view, setView] = React.useState<'open' | 'closed'>('open');
+  const [sortKey, setSortKey] = React.useState<PoSortKey | null>(null);
+  const [sortDir, setSortDir] = React.useState<SortDir>('asc');
+
+  const handleSort = (key: PoSortKey) => {
+    if (sortKey === key) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  };
 
   const { data: pos } = useQuery({
     queryKey: ['purchase-orders'],
@@ -147,7 +198,8 @@ export default function Purchasing() {
 
   const openPos = pos?.filter((p: any) => OPEN_STATUSES.includes(p.status)) ?? [];
   const closedPos = pos?.filter((p: any) => CLOSED_STATUSES.includes(p.status)) ?? [];
-  const displayedPos = view === 'open' ? openPos : closedPos;
+  const displayed = view === 'open' ? openPos : closedPos;
+  const sorted = sortKey ? sortPos(displayed, sortKey, sortDir) : displayed;
 
   return (
     <div className="p-8 space-y-8 max-w-7xl mx-auto">
@@ -216,33 +268,36 @@ export default function Purchasing() {
             </button>
           </div>
 
-          {/* PO Table */}
+          {/* PO Table — Column order: PO #, Date Submitted, SKU, Quantity, Supplier, Status, Expected */}
           <div className="bg-bg-card border border-border-subtle rounded-2xl overflow-hidden">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-border-subtle">
-                  <th className="data-table-header">PO #</th>
-                  <th className="data-table-header">SKU</th>
-                  <th className="data-table-header">Supplier</th>
-                  <th className="data-table-header">Quantity</th>
-                  <th className="data-table-header">Status</th>
-                  <th className="data-table-header">Submitted</th>
-                  <th className="data-table-header">Expected</th>
+                  <SortHeader label="PO #" sortKey="poNumber" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} />
+                  <SortHeader label="Date Submitted" sortKey="createdAt" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} />
+                  <SortHeader label="SKU" sortKey="skuCode" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} />
+                  <SortHeader label="Quantity" sortKey="orderQuantity" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} />
+                  <SortHeader label="Supplier" sortKey="supplier" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} />
+                  <SortHeader label="Status" sortKey="status" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} />
+                  <SortHeader label="Expected" sortKey="expectedArrival" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} />
                   <th className="data-table-header"></th>
                 </tr>
               </thead>
               <tbody>
-                {displayedPos.map((po: any) => (
+                {sorted.map((po: any) => (
                   <tr key={po.id} className="hover:bg-white/[0.02] transition-colors group">
                     <td className="data-table-cell font-mono font-bold">{po.poNumber}</td>
+                    <td className="data-table-cell font-mono text-white/50">
+                      {po.createdAt ? format(new Date(po.createdAt), 'MM/dd/yy') : 'N/A'}
+                    </td>
                     <td className="data-table-cell">
                       <div className="flex flex-col">
                         <span className="font-mono text-xs">{po.sku?.skuCode}</span>
                         <span className="text-[10px] text-white/40 truncate max-w-[120px]">{po.sku?.productDescription}</span>
                       </div>
                     </td>
-                    <td className="data-table-cell text-white/80">{po.supplier?.name}</td>
                     <td className="data-table-cell font-mono">{po.orderQuantity.toLocaleString()}</td>
+                    <td className="data-table-cell text-white/80">{po.supplier?.name}</td>
                     <td className="data-table-cell">
                       <span className={clsx(
                         "px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tight border",
@@ -252,10 +307,7 @@ export default function Purchasing() {
                       </span>
                     </td>
                     <td className="data-table-cell font-mono text-white/50">
-                      {po.createdAt ? format(new Date(po.createdAt), 'MMM d, yyyy') : 'N/A'}
-                    </td>
-                    <td className="data-table-cell font-mono text-white/50">
-                      {po.expectedArrival ? format(new Date(po.expectedArrival), 'MMM d') : 'TBD'}
+                      {po.expectedArrival ? format(new Date(po.expectedArrival), 'MM/dd/yy') : 'TBD'}
                     </td>
                     <td className="data-table-cell">
                       <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -277,7 +329,7 @@ export default function Purchasing() {
                     </td>
                   </tr>
                 ))}
-                {displayedPos.length === 0 && (
+                {sorted.length === 0 && (
                   <tr>
                     <td colSpan={8} className="py-12 text-center text-white/30 italic">
                       No {view} purchase orders
