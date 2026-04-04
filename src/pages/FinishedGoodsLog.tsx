@@ -8,103 +8,13 @@ import { format } from 'date-fns';
 import { clsx } from 'clsx';
 import LogShipmentModal from '../components/LogShipmentModal';
 
-function ShipmentTable({ shipments, title, emptyMessage, onReceiveToggle, togglePending, toggleVariables, onDelete }: {
-  shipments: any[];
-  title: string;
-  emptyMessage: string;
-  onReceiveToggle: (id: string, currentlyReceived: boolean) => void;
-  togglePending: boolean;
-  toggleVariables: any;
-  onDelete: (id: string) => void;
-}) {
-  return (
-    <div className="space-y-4">
-      <h3 className="text-lg font-bold tracking-tight">{title}</h3>
-      <div className="bg-bg-card border border-border-subtle rounded-2xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-border-subtle">
-                <th className="data-table-header">Ship Date</th>
-                <th className="data-table-header">Tracking</th>
-                <th className="data-table-header">PO #</th>
-                <th className="data-table-header">SKU</th>
-                <th className="data-table-header">Units</th>
-                <th className="data-table-header">Status</th>
-                <th className="data-table-header">Received?</th>
-              </tr>
-            </thead>
-            <tbody>
-              {shipments.map((shipment: any) => (
-                <tr key={shipment.id} className="hover:bg-white/[0.02] transition-colors group">
-                  <td className="data-table-cell font-mono text-white/60">
-                    {format(new Date(shipment.shipDate), 'MMM d, yyyy')}
-                  </td>
-                  <td className="data-table-cell">
-                    <span className="font-mono font-bold text-sm">{shipment.trackingNumber ?? 'No Tracking'}</span>
-                  </td>
-                  <td className="data-table-cell font-mono text-white/80">{shipment.po?.poNumber ?? 'N/A'}</td>
-                  <td className="data-table-cell">
-                    <div className="flex flex-col">
-                      <span className="font-mono text-xs">{shipment.sku.skuCode}</span>
-                      <span className="text-[10px] text-white/40 truncate max-w-[120px]">{shipment.sku.productDescription}</span>
-                    </div>
-                  </td>
-                  <td className="data-table-cell font-mono font-bold">{shipment.unitsShipped.toLocaleString()}</td>
-                  <td className="data-table-cell">
-                    <span className={clsx(
-                      "px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tight border",
-                      shipment.received
-                        ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
-                        : 'bg-blue-500/10 text-blue-500 border-blue-500/20'
-                    )}>
-                      {shipment.received ? 'Received' : 'In Transit'}
-                    </span>
-                  </td>
-                  <td className="data-table-cell">
-                    <div className="flex items-center gap-3">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        {togglePending && toggleVariables === shipment.id ? (
-                          <Loader2 size={16} className="animate-spin text-white/40" />
-                        ) : (
-                          <input
-                            type="checkbox"
-                            checked={shipment.received}
-                            onChange={() => onReceiveToggle(shipment.id, shipment.received)}
-                            className="w-4 h-4 rounded border-border-subtle bg-white/5 accent-emerald-500 cursor-pointer"
-                          />
-                        )}
-                      </label>
-                      <button
-                        onClick={() => onDelete(shipment.id)}
-                        className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-critical/20 text-white/40 hover:text-critical transition-all"
-                        title="Delete shipment"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {shipments.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="py-12 text-center text-white/30 italic">{emptyMessage}</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function FinishedGoodsLog() {
   const token = useAuthStore((state) => state.token);
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
   const [search, setSearch] = React.useState('');
+  const [view, setView] = React.useState<'open' | 'closed'>('open');
 
   const { data: shipments } = useQuery({
     queryKey: ['shipments'],
@@ -175,6 +85,7 @@ export default function FinishedGoodsLog() {
 
   const openShipments = filtered?.filter((s: any) => !s.received) ?? [];
   const closedShipments = filtered?.filter((s: any) => s.received) ?? [];
+  const displayedShipments = view === 'open' ? openShipments : closedShipments;
 
   return (
     <div className="p-8 space-y-8 max-w-7xl mx-auto">
@@ -244,39 +155,123 @@ export default function FinishedGoodsLog() {
         </div>
       </div>
 
-      {/* Search bar */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
-        <input
-          type="text"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search shipments, tracking..."
-          className="w-full bg-white/5 border border-border-subtle rounded-xl py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-white/10 transition-all"
-        />
+      {/* Search + Toggle buttons */}
+      <div className="flex items-center justify-between gap-4">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search shipments, tracking..."
+            className="w-full bg-white/5 border border-border-subtle rounded-xl py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-white/10 transition-all"
+          />
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setView('open')}
+            className={clsx(
+              "px-5 py-2.5 rounded-xl text-sm font-bold transition-all",
+              view === 'open'
+                ? 'bg-white text-black'
+                : 'bg-white/5 border border-border-subtle text-white/50 hover:bg-white/10'
+            )}
+          >
+            Open ({openShipments.length})
+          </button>
+          <button
+            onClick={() => setView('closed')}
+            className={clsx(
+              "px-5 py-2.5 rounded-xl text-sm font-bold transition-all",
+              view === 'closed'
+                ? 'bg-white text-black'
+                : 'bg-white/5 border border-border-subtle text-white/50 hover:bg-white/10'
+            )}
+          >
+            Closed ({closedShipments.length})
+          </button>
+        </div>
       </div>
 
-      {/* Open Shipments */}
-      <ShipmentTable
-        shipments={openShipments}
-        title={`Open Shipments (${openShipments.length})`}
-        emptyMessage="No open shipments"
-        onReceiveToggle={handleReceiveToggle}
-        togglePending={togglePending}
-        toggleVariables={toggleVariables}
-        onDelete={setDeletingId}
-      />
-
-      {/* Closed Shipments */}
-      <ShipmentTable
-        shipments={closedShipments}
-        title={`Closed Shipments (${closedShipments.length})`}
-        emptyMessage="No closed shipments"
-        onReceiveToggle={handleReceiveToggle}
-        togglePending={togglePending}
-        toggleVariables={toggleVariables}
-        onDelete={setDeletingId}
-      />
+      {/* Shipment Table */}
+      <div className="bg-bg-card border border-border-subtle rounded-2xl overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-border-subtle">
+                <th className="data-table-header">Ship Date</th>
+                <th className="data-table-header">Tracking</th>
+                <th className="data-table-header">PO #</th>
+                <th className="data-table-header">SKU</th>
+                <th className="data-table-header">Units</th>
+                <th className="data-table-header">Status</th>
+                <th className="data-table-header">Received?</th>
+              </tr>
+            </thead>
+            <tbody>
+              {displayedShipments.map((shipment: any) => (
+                <tr key={shipment.id} className="hover:bg-white/[0.02] transition-colors group">
+                  <td className="data-table-cell font-mono text-white/60">
+                    {format(new Date(shipment.shipDate), 'MMM d, yyyy')}
+                  </td>
+                  <td className="data-table-cell">
+                    <span className="font-mono font-bold text-sm">{shipment.trackingNumber ?? 'No Tracking'}</span>
+                  </td>
+                  <td className="data-table-cell font-mono text-white/80">{shipment.po?.poNumber ?? 'N/A'}</td>
+                  <td className="data-table-cell">
+                    <div className="flex flex-col">
+                      <span className="font-mono text-xs">{shipment.sku.skuCode}</span>
+                      <span className="text-[10px] text-white/40 truncate max-w-[120px]">{shipment.sku.productDescription}</span>
+                    </div>
+                  </td>
+                  <td className="data-table-cell font-mono font-bold">{shipment.unitsShipped.toLocaleString()}</td>
+                  <td className="data-table-cell">
+                    <span className={clsx(
+                      "px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tight border",
+                      shipment.received
+                        ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+                        : 'bg-blue-500/10 text-blue-500 border-blue-500/20'
+                    )}>
+                      {shipment.received ? 'Received' : 'In Transit'}
+                    </span>
+                  </td>
+                  <td className="data-table-cell">
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        {togglePending && toggleVariables === shipment.id ? (
+                          <Loader2 size={16} className="animate-spin text-white/40" />
+                        ) : (
+                          <input
+                            type="checkbox"
+                            checked={shipment.received}
+                            onChange={() => handleReceiveToggle(shipment.id, shipment.received)}
+                            className="w-4 h-4 rounded border-border-subtle bg-white/5 accent-emerald-500 cursor-pointer"
+                          />
+                        )}
+                      </label>
+                      <button
+                        onClick={() => setDeletingId(shipment.id)}
+                        className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-critical/20 text-white/40 hover:text-critical transition-all"
+                        title="Delete shipment"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {displayedShipments.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center">
+                    <Truck className="w-12 h-12 text-white/10 mx-auto mb-4" />
+                    <p className="text-white/30 italic">No {view} shipments</p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
