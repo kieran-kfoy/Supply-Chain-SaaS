@@ -3,9 +3,42 @@ import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
-import { Download, DollarSign, TrendingUp, Package, BarChart3, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { Download, DollarSign, TrendingUp, Package, BarChart3, ArrowUpRight, ArrowDownRight, ArrowUpDown } from 'lucide-react';
 import { motion } from 'motion/react';
 import { clsx } from 'clsx';
+
+type SortDir = 'asc' | 'desc';
+
+function SortableHeader({ label, sortKey, currentKey, currentDir, onSort, align = 'left' }: {
+  label: string; sortKey: string; currentKey: string | null; currentDir: SortDir; onSort: (k: string) => void; align?: 'left' | 'right' | 'center';
+}) {
+  return (
+    <th className={clsx("data-table-header", align === 'right' && 'text-right', align === 'center' && 'text-center')}>
+      <div
+        className={clsx(
+          "cursor-pointer select-none flex items-center gap-2 hover:text-white transition-colors",
+          align === 'right' && 'justify-end',
+          align === 'center' && 'justify-center'
+        )}
+        onClick={() => onSort(sortKey)}
+      >
+        {label}
+        <ArrowUpDown className={clsx("w-3 h-3 flex-shrink-0", currentKey === sortKey ? 'text-white' : 'text-white/20')} />
+      </div>
+    </th>
+  );
+}
+
+function sortByKey(list: any[], key: string | null, dir: SortDir, getValue: (item: any, key: string) => any) {
+  if (!key) return list;
+  return [...list].sort((a, b) => {
+    const va = getValue(a, key);
+    const vb = getValue(b, key);
+    if (va < vb) return dir === 'asc' ? -1 : 1;
+    if (va > vb) return dir === 'asc' ? 1 : -1;
+    return 0;
+  });
+}
 
 function downloadCsv(filename: string, headers: string[], rows: string[][]) {
   const csv = [headers.join(','), ...rows.map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(','))].join('\n');
@@ -24,6 +57,24 @@ export default function Reports() {
   const token = useAuthStore((state) => state.token);
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = React.useState<ReportTab>('cogs');
+  const [sortKey, setSortKey] = React.useState<string | null>(null);
+  const [sortDir, setSortDir] = React.useState<SortDir>('desc');
+
+  const handleSort = (key: string) => {
+    if (sortKey === key) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDir('desc');
+    }
+  };
+
+  // Reset sort when switching tabs
+  const handleTabChange = (tab: ReportTab) => {
+    setActiveTab(tab);
+    setSortKey(null);
+    setSortDir('desc');
+  };
 
   const { data: skus = [], isLoading } = useQuery({
     queryKey: ['inventory-skus'],
@@ -170,7 +221,7 @@ export default function Reports() {
         {tabs.map(tab => (
           <button
             key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
+            onClick={() => handleTabChange(tab.key)}
             className={clsx(
               "px-5 py-2.5 rounded-xl text-sm font-bold transition-all",
               activeTab === tab.key
@@ -210,16 +261,19 @@ export default function Reports() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-border-subtle">
-                  <th className="data-table-header">SKU</th>
-                  <th className="data-table-header">Product</th>
-                  <th className="data-table-header text-right">Qty</th>
-                  <th className="data-table-header text-right">Unit Cost</th>
-                  <th className="data-table-header text-right">Total COGS</th>
-                  <th className="data-table-header text-right">% of Total</th>
+                  <SortableHeader label="SKU" sortKey="skuCode" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} />
+                  <SortableHeader label="Product" sortKey="productDescription" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} />
+                  <SortableHeader label="Qty" sortKey="qty" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
+                  <SortableHeader label="Unit Cost" sortKey="cost" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
+                  <SortableHeader label="Total COGS" sortKey="totalCogs" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
+                  <SortableHeader label="% of Total" sortKey="pct" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
                 </tr>
               </thead>
               <tbody>
-                {cogsData.map((sku: any) => {
+                {sortByKey(cogsData, sortKey, sortDir, (item, key) => {
+                  if (key === 'pct') return grandTotalCogs > 0 ? item.totalCogs / grandTotalCogs : 0;
+                  return item[key] ?? '';
+                }).map((sku: any) => {
                   const pct = grandTotalCogs > 0 ? (sku.totalCogs / grandTotalCogs) * 100 : 0;
                   return (
                     <tr key={sku.id} className="hover:bg-white/[0.02] transition-colors cursor-pointer" onClick={() => navigate(`/inventory/${sku.id}`)}>
@@ -286,16 +340,19 @@ export default function Reports() {
               <thead>
                 <tr className="border-b border-border-subtle">
                   <th className="data-table-header w-8 text-center">#</th>
-                  <th className="data-table-header">SKU</th>
-                  <th className="data-table-header">Product</th>
-                  <th className="data-table-header text-right">30D Sold</th>
-                  <th className="data-table-header text-right">30D Revenue</th>
-                  <th className="data-table-header text-right">30D Profit</th>
-                  <th className="data-table-header text-right">% of Revenue</th>
+                  <SortableHeader label="SKU" sortKey="skuCode" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} />
+                  <SortableHeader label="Product" sortKey="productDescription" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} />
+                  <SortableHeader label="30D Sold" sortKey="sold30d" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
+                  <SortableHeader label="30D Revenue" sortKey="revenue30d" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
+                  <SortableHeader label="30D Profit" sortKey="profit30d" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
+                  <SortableHeader label="% of Revenue" sortKey="revPct" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
                 </tr>
               </thead>
               <tbody>
-                {topSellers.map((sku: any, i: number) => {
+                {sortByKey(topSellers, sortKey, sortDir, (item, key) => {
+                  if (key === 'revPct') return totalRevenue30d > 0 ? item.revenue30d / totalRevenue30d : 0;
+                  return item[key] ?? '';
+                }).map((sku: any, i: number) => {
                   const pct = totalRevenue30d > 0 ? (sku.revenue30d / totalRevenue30d) * 100 : 0;
                   return (
                     <tr key={sku.id} className="hover:bg-white/[0.02] transition-colors cursor-pointer" onClick={() => navigate(`/inventory/${sku.id}`)}>
@@ -374,18 +431,18 @@ export default function Reports() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-border-subtle">
-                  <th className="data-table-header">SKU</th>
-                  <th className="data-table-header">Product</th>
-                  <th className="data-table-header text-right">Unit Cost</th>
-                  <th className="data-table-header text-right">Selling Price</th>
-                  <th className="data-table-header text-right">Margin</th>
-                  <th className="data-table-header text-right">Profit/Unit</th>
-                  <th className="data-table-header text-right">30D Units</th>
-                  <th className="data-table-header text-right">30D Profit</th>
+                  <SortableHeader label="SKU" sortKey="skuCode" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} />
+                  <SortableHeader label="Product" sortKey="productDescription" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} />
+                  <SortableHeader label="Unit Cost" sortKey="cost" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
+                  <SortableHeader label="Selling Price" sortKey="price" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
+                  <SortableHeader label="Margin" sortKey="margin" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
+                  <SortableHeader label="Profit/Unit" sortKey="profitPerUnit" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
+                  <SortableHeader label="30D Units" sortKey="sold30d" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
+                  <SortableHeader label="30D Profit" sortKey="monthlyProfit" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
                 </tr>
               </thead>
               <tbody>
-                {marginData.map((sku: any) => (
+                {sortByKey(marginData, sortKey, sortDir, (item, key) => item[key] ?? '').map((sku: any) => (
                   <tr key={sku.id} className="hover:bg-white/[0.02] transition-colors cursor-pointer" onClick={() => navigate(`/inventory/${sku.id}`)}>
                     <td className="data-table-cell font-mono font-bold">{sku.skuCode}</td>
                     <td className="data-table-cell text-white/70 truncate max-w-[200px]">{sku.productDescription}</td>
@@ -460,19 +517,19 @@ export default function Reports() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-border-subtle">
-                  <th className="data-table-header">SKU</th>
-                  <th className="data-table-header">Product</th>
-                  <th className="data-table-header text-right">7D Vel</th>
-                  <th className="data-table-header text-right">30D Vel</th>
-                  <th className="data-table-header text-right">90D Vel</th>
-                  <th className="data-table-header text-right">Available</th>
-                  <th className="data-table-header text-right">Days Left</th>
-                  <th className="data-table-header text-right">7D Trend</th>
-                  <th className="data-table-header text-right">Turnover</th>
+                  <SortableHeader label="SKU" sortKey="skuCode" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} />
+                  <SortableHeader label="Product" sortKey="productDescription" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} />
+                  <SortableHeader label="7D Vel" sortKey="v7" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
+                  <SortableHeader label="30D Vel" sortKey="v30" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
+                  <SortableHeader label="90D Vel" sortKey="v90" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
+                  <SortableHeader label="Available" sortKey="available" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
+                  <SortableHeader label="Days Left" sortKey="daysLeft" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
+                  <SortableHeader label="7D Trend" sortKey="trend" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
+                  <SortableHeader label="Turnover" sortKey="turnover" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
                 </tr>
               </thead>
               <tbody>
-                {velocityData.map((sku: any) => (
+                {sortByKey(velocityData, sortKey, sortDir, (item, key) => item[key] ?? '').map((sku: any) => (
                   <tr key={sku.id} className="hover:bg-white/[0.02] transition-colors cursor-pointer" onClick={() => navigate(`/inventory/${sku.id}`)}>
                     <td className="data-table-cell font-mono font-bold">{sku.skuCode}</td>
                     <td className="data-table-cell text-white/70 truncate max-w-[180px]">{sku.productDescription}</td>

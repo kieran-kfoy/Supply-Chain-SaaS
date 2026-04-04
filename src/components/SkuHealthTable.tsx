@@ -59,12 +59,27 @@ const columns = [
       return <span className="font-mono">{date ? format(new Date(date), 'MMM d, yyyy') : '-'}</span>;
     },
   }),
-  columnHelper.accessor('latestSnapshot.reorderStatus', {
+  columnHelper.display({
+    id: 'status',
     header: 'Status',
     cell: info => {
-      const status = info.getValue();
+      const status = info.row.original.latestSnapshot?.reorderStatus;
+      const onOrder = info.row.original.unitsOnOrder ?? 0;
       if (!status) return <span className="text-white/30">—</span>;
-      const colors = {
+
+      // If stock is low but POs are in place, show "LOW STOCK" instead of alarming labels
+      const hasOrder = onOrder > 0;
+      const isLow = status === 'CRITICAL' || status === 'REORDER_SOON';
+
+      if (isLow && hasOrder) {
+        return (
+          <span className={clsx("status-badge", "bg-amber-500/20 text-amber-400")}>
+            LOW STOCK
+          </span>
+        );
+      }
+
+      const colors: Record<string, string> = {
         CRITICAL: 'bg-critical text-white',
         REORDER_SOON: 'bg-reorder text-white',
         MONITOR: 'bg-monitor text-white',

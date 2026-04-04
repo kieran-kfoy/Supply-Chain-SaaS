@@ -352,7 +352,7 @@ export default function Purchasing() {
                   <SortHeader label="Supplier" sortKey="supplier" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} />
                   <SortHeader label="Status" sortKey="status" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} />
                   <SortHeader label="Expected" sortKey="expectedArrival" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} />
-                  <th className="data-table-header"></th>
+                  <th className="data-table-header text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -384,28 +384,28 @@ export default function Purchasing() {
                     <td className="data-table-cell font-mono text-white/50">
                       {po.expectedArrival ? format(new Date(po.expectedArrival), 'MM/dd/yy') : 'TBD'}
                     </td>
-                    <td className="data-table-cell">
-                      <div className="flex items-center gap-2">
+                    <td className="data-table-cell text-right">
+                      <div className="flex items-center justify-end gap-1">
                         <button
                           onClick={() => handleDownloadPo(po.poNumber)}
-                          className="p-1.5 rounded-lg hover:bg-blue-500/20 text-white/40 hover:text-blue-400 transition-all"
+                          className="p-2 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-all"
                           title="Download PO as PDF"
                         >
-                          <FileDown size={14} />
+                          <FileDown size={15} />
                         </button>
                         <button
                           onClick={() => setEditingPo(po)}
-                          className="p-1.5 rounded-lg hover:bg-white/10 text-white/40 hover:text-white transition-all"
+                          className="p-2 rounded-lg bg-white/5 text-white/60 hover:bg-white/10 hover:text-white transition-all"
                           title="Edit"
                         >
-                          <Pencil size={14} />
+                          <Pencil size={15} />
                         </button>
                         <button
                           onClick={() => setDeletingId(po.id)}
-                          className="p-1.5 rounded-lg hover:bg-critical/20 text-white/40 hover:text-critical transition-all"
+                          className="p-2 rounded-lg bg-critical/10 text-critical/70 hover:bg-critical/20 hover:text-critical transition-all"
                           title="Delete"
                         >
-                          <Trash2 size={14} />
+                          <Trash2 size={15} />
                         </button>
                       </div>
                     </td>

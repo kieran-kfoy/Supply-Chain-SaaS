@@ -65,20 +65,6 @@ export default function Bundles() {
 
       <CreateBundleModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-bg-card border border-border-subtle p-6 rounded-2xl">
-          <p className="text-xs text-white/30 uppercase font-bold tracking-widest mb-1">Total Bundles</p>
-          <p className="text-3xl font-bold tracking-tight">{bundles?.length ?? 0}</p>
-        </div>
-        <div className="bg-bg-card border border-border-subtle p-6 rounded-2xl">
-          <p className="text-xs text-white/30 uppercase font-bold tracking-widest mb-1">Total Components</p>
-          <p className="text-3xl font-bold tracking-tight">
-            {bundles?.reduce((sum: number, b: any) => sum + (b.components?.length ?? 0), 0) ?? 0}
-          </p>
-        </div>
-      </div>
-
       {/* Bundle List */}
       <section className="space-y-4">
         {isLoading && (

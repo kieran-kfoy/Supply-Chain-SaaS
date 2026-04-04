@@ -213,36 +213,6 @@ export default function FinishedGoodsLog() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-bg-card border border-border-subtle p-6 rounded-2xl flex items-center gap-4">
-          <div className="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center">
-            <Truck className="text-blue-500 w-6 h-6" />
-          </div>
-          <div>
-            <p className="text-xs text-white/30 uppercase font-bold tracking-widest mb-1">In Transit</p>
-            <p className="text-2xl font-bold tracking-tight">{shipments?.filter((s: any) => !s.received).length ?? 0}</p>
-          </div>
-        </div>
-        <div className="bg-bg-card border border-border-subtle p-6 rounded-2xl flex items-center gap-4">
-          <div className="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center">
-            <CheckCircle2 className="text-emerald-500 w-6 h-6" />
-          </div>
-          <div>
-            <p className="text-xs text-white/30 uppercase font-bold tracking-widest mb-1">Received</p>
-            <p className="text-2xl font-bold tracking-tight">{shipments?.filter((s: any) => s.received).length ?? 0}</p>
-          </div>
-        </div>
-        <div className="bg-bg-card border border-border-subtle p-6 rounded-2xl flex items-center gap-4">
-          <div className="w-12 h-12 bg-critical/10 rounded-xl flex items-center justify-center">
-            <AlertCircle className="text-critical w-6 h-6" />
-          </div>
-          <div>
-            <p className="text-xs text-white/30 uppercase font-bold tracking-widest mb-1">Discrepancies</p>
-            <p className="text-2xl font-bold tracking-tight">{shipments?.filter((s: any) => s.discrepancyFlag).length ?? 0}</p>
-          </div>
-        </div>
-      </div>
-
       {/* Toggle buttons */}
       <div className="flex gap-2">
         <button
