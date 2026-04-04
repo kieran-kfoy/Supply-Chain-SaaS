@@ -219,6 +219,42 @@ async function startServer() {
     }
   });
 
+  // Bulk Shipments (multi-line)
+  app.post("/api/v1/shipments/bulk", authenticate, async (req: any, res) => {
+    const tenantId = req.user.tenantId;
+    const { shipDate, trackingNumber, freightCarrier, lineItems } = req.body;
+
+    try {
+      const shipments = [];
+      for (const item of lineItems) {
+        const shipment = await prisma.shipment.create({
+          data: {
+            tenantId,
+            poId: item.poId,
+            skuId: item.skuId,
+            unitsShipped: parseInt(item.unitsShipped),
+            shipDate: new Date(shipDate),
+            trackingNumber,
+            freightCarrier,
+          }
+        });
+        shipments.push(shipment);
+
+        // Update PO status if linked
+        if (item.poId) {
+          await prisma.purchaseOrder.update({
+            where: { id: item.poId },
+            data: { status: "SHIPPED", dateShipped: new Date(shipDate) }
+          });
+        }
+      }
+
+      res.json({ success: true, data: shipments });
+    } catch (err) {
+      res.status(500).json({ success: false, error: "Failed to log shipments" });
+    }
+  });
+
   // Purchase Orders (List)
   app.get("/api/v1/purchase-orders", authenticate, async (req: any, res) => {
     const tenantId = req.user.tenantId;
