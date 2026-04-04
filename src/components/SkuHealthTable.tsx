@@ -17,6 +17,7 @@ interface SkuHealthData {
   id: string;
   skuCode: string;
   productDescription: string;
+  unitsOnOrder: number;
   latestSnapshot: {
     availableQuantity: number;
     velocity30d: number;
@@ -41,6 +42,13 @@ const columns = [
   columnHelper.accessor('latestSnapshot.availableQuantity', {
     header: 'Available',
     cell: info => <span className="font-mono">{info.getValue()?.toLocaleString() ?? '-'}</span>,
+  }),
+  columnHelper.accessor('unitsOnOrder', {
+    header: 'On Order',
+    cell: info => {
+      const val = info.getValue();
+      return <span className={clsx("font-mono", val > 0 && "text-blue-400")}>{val > 0 ? val.toLocaleString() : '—'}</span>;
+    },
   }),
   columnHelper.accessor('latestSnapshot.velocity30d', {
     header: '30d Vel',

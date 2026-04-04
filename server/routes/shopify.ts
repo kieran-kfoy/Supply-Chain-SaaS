@@ -496,7 +496,18 @@ router.post('/sync', async (req: any, res) => {
       }
     }
 
-    // ── Step 4: Create inventory snapshots for each tracked SKU ───────────────
+    // ── Step 4: Build units-on-order map from open POs ─────────────────────────
+    const openPoStatuses = ['OPEN', 'IN PRODUCTION', 'SHIPPED'];
+    const openPOs = await prisma.purchaseOrder.findMany({
+      where: { tenantId, status: { in: openPoStatuses } },
+    });
+    const unitsOnOrderMap = new Map<string, number>(); // skuId → total units on order
+    for (const po of openPOs) {
+      const current = unitsOnOrderMap.get(po.skuId) || 0;
+      unitsOnOrderMap.set(po.skuId, current + po.orderQuantity);
+    }
+
+    // ── Step 5: Create inventory snapshots for each tracked SKU ───────────────
     let snapshotsCreated = 0;
 
     for (const listing of trackedListings) {
@@ -508,24 +519,31 @@ router.post('/sync', async (req: any, res) => {
       const velocity30d = sales.sold30d / 30;
       const velocity90d = sales.sold90d / 90;
 
-      // Use 30d velocity as primary, fall back to 90d, minimum 0.01 to avoid division by zero
+      // Use 30d velocity as primary, fall back to 90d
       const primaryVelocity = velocity30d > 0 ? velocity30d : velocity90d > 0 ? velocity90d : 0;
       const daysInStock = primaryVelocity > 0 ? onHand / primaryVelocity : 0;
-      const daysOnOrder = 0; // Updated when POs exist
+
+      // Factor in open POs
+      const unitsOnOrder = unitsOnOrderMap.get(sku.id) || 0;
+      const daysOnOrder = primaryVelocity > 0 ? unitsOnOrder / primaryVelocity : 0;
       const totalDaysOutstanding = daysInStock + daysOnOrder;
+
+      // OOS date accounts for both on-hand AND on-order stock
       const oosDate = primaryVelocity > 0
-        ? new Date(Date.now() + daysInStock * 24 * 60 * 60 * 1000)
+        ? new Date(Date.now() + totalDaysOutstanding * 24 * 60 * 60 * 1000)
         : null;
-      const daysUntilReorder = daysInStock - (sku.orderTriggerDays || 90);
+
+      // Reorder trigger uses totalDaysOutstanding (on-hand + on-order)
+      const daysUntilReorder = totalDaysOutstanding - (sku.orderTriggerDays || 90);
 
       let reorderStatus = 'HEALTHY';
       if (primaryVelocity === 0) {
         reorderStatus = 'MONITOR'; // No sales data yet
-      } else if (daysInStock <= 30) {
+      } else if (totalDaysOutstanding <= 30) {
         reorderStatus = 'CRITICAL';
-      } else if (daysInStock <= 60) {
+      } else if (totalDaysOutstanding <= 60) {
         reorderStatus = 'REORDER_SOON';
-      } else if (daysInStock <= 90) {
+      } else if (totalDaysOutstanding <= 90) {
         reorderStatus = 'MONITOR';
       }
 

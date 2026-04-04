@@ -106,11 +106,23 @@ async function startServer() {
       }
     });
 
+    // Get units on order from open POs
+    const openPoStatuses = ['OPEN', 'IN PRODUCTION', 'SHIPPED'];
+    const openPOs = await prisma.purchaseOrder.findMany({
+      where: { tenantId, status: { in: openPoStatuses } },
+    });
+    const unitsOnOrderMap = new Map<string, number>();
+    for (const po of openPOs) {
+      const current = unitsOnOrderMap.get(po.skuId) || 0;
+      unitsOnOrderMap.set(po.skuId, current + po.orderQuantity);
+    }
+
     res.json({
       success: true,
       data: skus.map(sku => ({
         ...sku,
-        latestSnapshot: sku.snapshots[0] || null
+        latestSnapshot: sku.snapshots[0] || null,
+        unitsOnOrder: unitsOnOrderMap.get(sku.id) || 0,
       }))
     });
   });
@@ -457,11 +469,23 @@ async function startServer() {
       return true;
     });
 
+    // Get units on order from open POs
+    const openPoStatuses = ['OPEN', 'IN PRODUCTION', 'SHIPPED'];
+    const openPOs = await prisma.purchaseOrder.findMany({
+      where: { tenantId, status: { in: openPoStatuses } },
+    });
+    const unitsOnOrderMap = new Map<string, number>();
+    for (const po of openPOs) {
+      const current = unitsOnOrderMap.get(po.skuId) || 0;
+      unitsOnOrderMap.set(po.skuId, current + po.orderQuantity);
+    }
+
     // Filter: show if CRITICAL/REORDER_SOON, or within 15 days of order trigger
+    // Uses totalDaysOutstanding (daysInStock + daysOnOrder) for PO-aware calculations
     const UPCOMING_WINDOW = 15;
     const filtered = latestSnapshots.filter(snap => {
       if (snap.reorderStatus === 'CRITICAL' || snap.reorderStatus === 'REORDER_SOON') return true;
-      const daysToOrder = snap.daysInStock - snap.sku.orderTriggerDays;
+      const daysToOrder = snap.totalDaysOutstanding - snap.sku.orderTriggerDays;
       return daysToOrder <= UPCOMING_WINDOW && snap.velocity30d > 0;
     });
 
@@ -470,11 +494,13 @@ async function startServer() {
 
     const data = filtered.map(snap => {
       const velocity = snap.velocity30d > 0 ? snap.velocity30d : snap.velocity90d;
+      const unitsOnOrder = unitsOnOrderMap.get(snap.skuId) || 0;
       const suggestedOrderQty = velocity > 0
-        ? Math.max(0, Math.ceil((snap.sku.daysToOrderTarget * velocity) - snap.availableQuantity))
+        ? Math.max(0, Math.ceil((snap.sku.daysToOrderTarget * velocity) - snap.availableQuantity - unitsOnOrder))
         : 0;
       const json = JSON.parse(JSON.stringify(snap));
       json.suggestedOrderQty = suggestedOrderQty;
+      json.unitsOnOrder = unitsOnOrder;
       return json;
     });
 

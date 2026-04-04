@@ -450,15 +450,21 @@ export default function Purchasing() {
                     item.reorderStatus === 'CRITICAL' ? 'text-critical' : 'text-reorder'
                   )} />
                 </div>
-                <div className="grid grid-cols-3 gap-4 pt-2 border-t border-white/5">
+                <div className="grid grid-cols-4 gap-4 pt-2 border-t border-white/5">
                   <div>
                     <p className="text-[10px] text-white/30 uppercase font-bold tracking-widest">Suggested Order</p>
                     <p className="text-sm font-bold font-mono">{item.suggestedOrderQty?.toLocaleString() ?? '—'} <span className="text-[10px] text-white/30 font-normal">units</span></p>
                   </div>
                   <div>
+                    <p className="text-[10px] text-white/30 uppercase font-bold tracking-widest">On Order</p>
+                    <p className={clsx("text-sm font-bold font-mono", item.unitsOnOrder > 0 ? "text-blue-400" : "text-white/30")}>
+                      {item.unitsOnOrder > 0 ? item.unitsOnOrder.toLocaleString() : '—'} {item.unitsOnOrder > 0 && <span className="text-[10px] text-white/30 font-normal">units</span>}
+                    </p>
+                  </div>
+                  <div>
                     <p className="text-[10px] text-white/30 uppercase font-bold tracking-widest">Days to Order</p>
                     {(() => {
-                      const daysToOrder = Math.round(item.daysInStock - (item.sku?.orderTriggerDays ?? 90));
+                      const daysToOrder = Math.round(item.totalDaysOutstanding - (item.sku?.orderTriggerDays ?? 90));
                       return (
                         <p className={clsx(
                           "text-sm font-bold font-mono",
