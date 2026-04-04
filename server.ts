@@ -579,11 +579,13 @@ async function startServer() {
             const salesMap = new Map<string, { sold7d: number; sold30d: number; sold90d: number }>();
             if (ordersRes.ok) {
               const { orders } = await ordersRes.json() as { orders: any[] };
+              console.log(`[AutoSync] Orders fetched: ${orders?.length ?? 0}`);
               for (const order of orders) {
                 const orderDate = new Date(order.created_at);
                 for (const item of order.line_items || []) {
                   const vid = String(item.variant_id);
                   const qty = item.quantity || 0;
+                  console.log(`[AutoSync] Order ${order.id} | variant ${vid} | qty ${qty} | date ${order.created_at}`);
                   const s = salesMap.get(vid) || { sold7d: 0, sold30d: 0, sold90d: 0 };
                   s.sold90d += qty;
                   if (orderDate >= thirtyDaysAgo) s.sold30d += qty;
@@ -591,6 +593,8 @@ async function startServer() {
                   salesMap.set(vid, s);
                 }
               }
+            } else {
+              console.error(`[AutoSync] Orders fetch FAILED: ${ordersRes.status} ${ordersRes.statusText}`);
             }
 
             // Create snapshots and sync barcode
