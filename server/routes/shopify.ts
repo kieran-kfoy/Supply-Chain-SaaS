@@ -429,13 +429,11 @@ router.post('/sync', async (req: any, res) => {
 
     if (ordersRes.ok) {
       const { orders } = await ordersRes.json() as { orders: any[] };
-      console.log(`[Shopify Sync] Orders fetched: ${orders?.length ?? 0}`);
       for (const order of orders) {
         const orderDate = new Date(order.created_at);
         for (const item of order.line_items || []) {
           const vid = String(item.variant_id);
           const qty = item.quantity || 0;
-          console.log(`[Shopify Sync] Order ${order.id} | variant ${vid} | qty ${qty} | date ${order.created_at}`);
           const existing = salesMap.get(vid) || { sold7d: 0, sold30d: 0, sold90d: 0 };
           existing.sold90d += qty;
           if (orderDate >= thirtyDaysAgo) existing.sold30d += qty;
@@ -443,10 +441,6 @@ router.post('/sync', async (req: any, res) => {
           salesMap.set(vid, existing);
         }
       }
-    } else {
-      console.error(`[Shopify Sync] Orders fetch FAILED: ${ordersRes.status} ${ordersRes.statusText}`);
-      const body = await ordersRes.text();
-      console.error(`[Shopify Sync] Orders response body: ${body}`);
     }
 
     // ── Step 4: Create inventory snapshots for each tracked SKU ───────────────
