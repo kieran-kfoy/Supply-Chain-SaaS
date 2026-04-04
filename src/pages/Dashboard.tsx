@@ -15,6 +15,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 const HEALTH_COLORS: Record<string, string> = {
   CRITICAL: '#ef4444',
   REORDER_SOON: '#f59e0b',
+  LOW_STOCK: '#f59e0b',
   MONITOR: '#3b82f6',
   HEALTHY: '#22c55e',
 };
@@ -22,6 +23,7 @@ const HEALTH_COLORS: Record<string, string> = {
 const HEALTH_LABELS: Record<string, string> = {
   CRITICAL: 'Critical',
   REORDER_SOON: 'Reorder Soon',
+  LOW_STOCK: 'Low Stock (Ordered)',
   MONITOR: 'Monitor',
   HEALTHY: 'Healthy',
 };
@@ -96,16 +98,40 @@ export default function Dashboard() {
 
   // ── Derived metrics ──────────────────────────────────────────────────────────
 
-  // Portfolio health breakdown
-  const healthBreakdown = ['CRITICAL', 'REORDER_SOON', 'MONITOR', 'HEALTHY'].map(status => ({
+  const skusWithSnapshot = skus.filter((s: any) => s.latestSnapshot);
+
+  // Classify each SKU with PO-aware status
+  const getEffectiveStatus = (sku: any) => {
+    const status = sku.latestSnapshot?.reorderStatus;
+    const onOrder = sku.unitsOnOrder ?? 0;
+    if ((status === 'CRITICAL' || status === 'REORDER_SOON') && onOrder > 0) return 'LOW_STOCK';
+    return status;
+  };
+
+  // Portfolio health breakdown with PO-aware categories
+  const healthBreakdown = ['CRITICAL', 'REORDER_SOON', 'LOW_STOCK', 'MONITOR', 'HEALTHY'].map(status => ({
     status,
-    count: skus.filter((s: any) => s.latestSnapshot?.reorderStatus === status).length,
+    count: skusWithSnapshot.filter((s: any) => getEffectiveStatus(s) === status).length,
   })).filter(d => d.count > 0);
 
-  const skusWithSnapshot = skus.filter((s: any) => s.latestSnapshot);
-  const criticalSkus = skusWithSnapshot
-    .filter((s: any) => s.latestSnapshot.reorderStatus === 'CRITICAL' || s.latestSnapshot.reorderStatus === 'REORDER_SOON')
+  // SKUs that truly need action (CRITICAL/REORDER_SOON without POs covering them)
+  const actionNeededSkus = skusWithSnapshot
+    .filter((s: any) => {
+      const status = s.latestSnapshot.reorderStatus;
+      return (status === 'CRITICAL' || status === 'REORDER_SOON') && (s.unitsOnOrder ?? 0) === 0;
+    })
     .sort((a: any, b: any) => (a.latestSnapshot.daysInStock ?? 9999) - (b.latestSnapshot.daysInStock ?? 9999));
+
+  // SKUs that are low stock but have POs in place (informational, not urgent)
+  const lowStockOrderedSkus = skusWithSnapshot
+    .filter((s: any) => {
+      const status = s.latestSnapshot.reorderStatus;
+      return (status === 'CRITICAL' || status === 'REORDER_SOON') && (s.unitsOnOrder ?? 0) > 0;
+    })
+    .sort((a: any, b: any) => (a.latestSnapshot.daysInStock ?? 9999) - (b.latestSnapshot.daysInStock ?? 9999));
+
+  // Combined for backward compat (used by "Needs Attention" card count — only truly actionable)
+  const criticalSkus = actionNeededSkus;
 
   // Capital metrics
   const inventoryValue = skusWithSnapshot.reduce((sum: number, s: any) =>
@@ -213,9 +239,9 @@ export default function Dashboard() {
               <Zap className="text-critical w-5 h-5" />
               Action Required
             </h3>
-            {criticalSkus.length > 0 && (
+            {(actionNeededSkus.length + stockouts.length + lowStockOrderedSkus.length) > 0 && (
               <span className="bg-critical/10 text-critical text-[10px] font-bold px-2.5 py-1 rounded-full border border-critical/20">
-                {criticalSkus.length} SKU{criticalSkus.length > 1 ? 's' : ''}
+                {actionNeededSkus.length + stockouts.length + lowStockOrderedSkus.length} SKU{(actionNeededSkus.length + stockouts.length + lowStockOrderedSkus.length) > 1 ? 's' : ''}
               </span>
             )}
           </div>
@@ -282,8 +308,8 @@ export default function Dashboard() {
                 </motion.div>
               ))}
 
-              {/* Critical / Reorder SKUs */}
-              {criticalSkus.map((sku: any, i: number) => {
+              {/* Critical / Reorder SKUs — truly need action (no POs) */}
+              {actionNeededSkus.map((sku: any, i: number) => {
                 const snap = sku.latestSnapshot;
                 const daysLeft = Math.round(snap.daysInStock ?? 0);
                 const isCritical = snap.reorderStatus === 'CRITICAL';
@@ -334,6 +360,52 @@ export default function Dashboard() {
                   </motion.div>
                 );
               })}
+
+              {/* Low Stock — POs already placed, informational only */}
+              {lowStockOrderedSkus.length > 0 && (
+                <div className="space-y-3">
+                  <p className="text-[10px] text-white/30 uppercase font-bold tracking-widest mt-2">Low Stock — Orders Placed</p>
+                  {lowStockOrderedSkus.map((sku: any, i: number) => {
+                    const snap = sku.latestSnapshot;
+                    const daysLeft = Math.round(snap.daysInStock ?? 0);
+                    return (
+                      <motion.div
+                        key={sku.id}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.05 }}
+                        className="bg-bg-card border border-border-subtle p-4 rounded-xl flex items-center gap-4 hover:border-white/20 transition-all"
+                      >
+                        <div className="w-9 h-9 bg-blue-500/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <ShoppingCart className="text-blue-400 w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="font-bold text-sm font-mono">{sku.skuCode}</p>
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-tight border bg-amber-500/10 text-amber-400 border-amber-500/20">
+                              Low Stock
+                            </span>
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-tight border bg-blue-500/10 text-blue-400 border-blue-500/20">
+                              {sku.unitsOnOrder?.toLocaleString()} on order
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-4 mt-1">
+                            <span className="text-[11px] text-white/40">{daysLeft}d remaining</span>
+                            <span className="text-[11px] text-white/40">{snap.availableQuantity?.toLocaleString()} units on hand</span>
+                            <span className="text-[11px] text-white/40">{snap.velocity30d?.toFixed(1)} u/day</span>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => navigate(`/inventory/${sku.id}`)}
+                          className="flex-shrink-0 text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white hover:text-black transition-all"
+                        >
+                          View →
+                        </button>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
 
               {/* Dead stock flags */}
               {deadStock.length > 0 && (
