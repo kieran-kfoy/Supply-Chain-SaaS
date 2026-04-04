@@ -480,27 +480,36 @@ async function startServer() {
       unitsOnOrderMap.set(po.skuId, current + po.orderQuantity);
     }
 
-    // Filter: show if CRITICAL/REORDER_SOON, or within 15 days of order trigger
-    // Uses totalDaysOutstanding (daysInStock + daysOnOrder) for PO-aware calculations
+    // Compute PO-aware metrics for each snapshot, then filter
     const UPCOMING_WINDOW = 15;
-    const filtered = latestSnapshots.filter(snap => {
-      if (snap.reorderStatus === 'CRITICAL' || snap.reorderStatus === 'REORDER_SOON') return true;
-      const daysToOrder = snap.totalDaysOutstanding - snap.sku.orderTriggerDays;
-      return daysToOrder <= UPCOMING_WINDOW && snap.velocity30d > 0;
-    });
-
-    // Sort by urgency (most urgent first)
-    filtered.sort((a, b) => a.daysUntilReorder - b.daysUntilReorder);
-
-    const data = filtered.map(snap => {
+    const enriched = latestSnapshots.map(snap => {
       const velocity = snap.velocity30d > 0 ? snap.velocity30d : snap.velocity90d;
       const unitsOnOrder = unitsOnOrderMap.get(snap.skuId) || 0;
+      const daysOnOrderLive = velocity > 0 ? unitsOnOrder / velocity : 0;
+      const totalDaysOutstandingLive = snap.daysInStock + daysOnOrderLive;
       const suggestedOrderQty = velocity > 0
         ? Math.max(0, Math.ceil((snap.sku.daysToOrderTarget * velocity) - snap.availableQuantity - unitsOnOrder))
         : 0;
-      const json = JSON.parse(JSON.stringify(snap));
-      json.suggestedOrderQty = suggestedOrderQty;
-      json.unitsOnOrder = unitsOnOrder;
+      return { snap, velocity, unitsOnOrder, totalDaysOutstandingLive, suggestedOrderQty };
+    });
+
+    // Filter: only show if there's still action needed (suggestedOrderQty > 0)
+    // and stock-on-hand status is CRITICAL/REORDER_SOON or within 15 days of trigger
+    const filtered = enriched.filter(item => {
+      if (item.suggestedOrderQty === 0) return false; // POs cover the need
+      if (item.snap.reorderStatus === 'CRITICAL' || item.snap.reorderStatus === 'REORDER_SOON') return true;
+      const daysToOrder = item.snap.daysInStock - item.snap.sku.orderTriggerDays;
+      return daysToOrder <= UPCOMING_WINDOW && item.snap.velocity30d > 0;
+    });
+
+    // Sort by urgency (most urgent first)
+    filtered.sort((a, b) => a.snap.daysUntilReorder - b.snap.daysUntilReorder);
+
+    const data = filtered.map(item => {
+      const json = JSON.parse(JSON.stringify(item.snap));
+      json.suggestedOrderQty = item.suggestedOrderQty;
+      json.unitsOnOrder = item.unitsOnOrder;
+      json.totalDaysOutstandingLive = item.totalDaysOutstandingLive;
       return json;
     });
 

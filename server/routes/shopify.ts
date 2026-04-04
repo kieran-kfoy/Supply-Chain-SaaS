@@ -528,22 +528,23 @@ router.post('/sync', async (req: any, res) => {
       const daysOnOrder = primaryVelocity > 0 ? unitsOnOrder / primaryVelocity : 0;
       const totalDaysOutstanding = daysInStock + daysOnOrder;
 
-      // OOS date accounts for both on-hand AND on-order stock
+      // OOS date based on current stock on hand only
       const oosDate = primaryVelocity > 0
-        ? new Date(Date.now() + totalDaysOutstanding * 24 * 60 * 60 * 1000)
+        ? new Date(Date.now() + daysInStock * 24 * 60 * 60 * 1000)
         : null;
 
-      // Reorder trigger uses totalDaysOutstanding (on-hand + on-order)
-      const daysUntilReorder = totalDaysOutstanding - (sku.orderTriggerDays || 90);
+      // Reorder status based on current stock on hand (not PO-aware)
+      // The reorder queue endpoint handles PO-aware logic separately
+      const daysUntilReorder = daysInStock - (sku.orderTriggerDays || 90);
 
       let reorderStatus = 'HEALTHY';
       if (primaryVelocity === 0) {
         reorderStatus = 'MONITOR'; // No sales data yet
-      } else if (totalDaysOutstanding <= 30) {
+      } else if (daysInStock <= 30) {
         reorderStatus = 'CRITICAL';
-      } else if (totalDaysOutstanding <= 60) {
+      } else if (daysInStock <= 60) {
         reorderStatus = 'REORDER_SOON';
-      } else if (totalDaysOutstanding <= 90) {
+      } else if (daysInStock <= 90) {
         reorderStatus = 'MONITOR';
       }
 

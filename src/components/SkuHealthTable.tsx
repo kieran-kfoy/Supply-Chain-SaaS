@@ -21,6 +21,7 @@ interface SkuHealthData {
   latestSnapshot: {
     availableQuantity: number;
     velocity30d: number;
+    daysInStock: number;
     totalDaysOutstanding: number;
     oosDate: string;
     reorderStatus: 'CRITICAL' | 'REORDER_SOON' | 'MONITOR' | 'HEALTHY';
@@ -43,19 +44,12 @@ const columns = [
     header: 'Available',
     cell: info => <span className="font-mono">{info.getValue()?.toLocaleString() ?? '-'}</span>,
   }),
-  columnHelper.accessor('unitsOnOrder', {
-    header: 'On Order',
-    cell: info => {
-      const val = info.getValue();
-      return <span className={clsx("font-mono", val > 0 && "text-blue-400")}>{val > 0 ? val.toLocaleString() : '—'}</span>;
-    },
-  }),
   columnHelper.accessor('latestSnapshot.velocity30d', {
     header: '30d Vel',
     cell: info => <span className="font-mono">{(info.getValue() ?? 0).toFixed(2)}</span>,
   }),
-  columnHelper.accessor('latestSnapshot.totalDaysOutstanding', {
-    header: 'Days Out',
+  columnHelper.accessor('latestSnapshot.daysInStock', {
+    header: 'Days Left',
     cell: info => <span className="font-mono">{(info.getValue() ?? 0).toFixed(0)}</span>,
   }),
   columnHelper.accessor('latestSnapshot.oosDate', {
@@ -81,6 +75,13 @@ const columns = [
           {status.replace('_', ' ')}
         </span>
       );
+    },
+  }),
+  columnHelper.accessor('unitsOnOrder', {
+    header: 'On Order',
+    cell: info => {
+      const val = info.getValue();
+      return <span className={clsx("font-mono", val > 0 ? "text-blue-400" : "text-white/20")}>{val > 0 ? val.toLocaleString() : '—'}</span>;
     },
   }),
   columnHelper.display({
