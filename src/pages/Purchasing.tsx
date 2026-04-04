@@ -435,14 +435,28 @@ export default function Purchasing() {
                     item.reorderStatus === 'CRITICAL' ? 'text-critical' : 'text-reorder'
                   )} />
                 </div>
-                <div className="grid grid-cols-2 gap-4 pt-2 border-t border-white/5">
+                <div className="grid grid-cols-3 gap-4 pt-2 border-t border-white/5">
                   <div>
-                    <p className="text-[10px] text-white/30 uppercase font-bold tracking-widest">Available</p>
-                    <p className="text-sm font-bold font-mono">{item.availableQuantity}</p>
+                    <p className="text-[10px] text-white/30 uppercase font-bold tracking-widest">Suggested Order</p>
+                    <p className="text-sm font-bold font-mono">{item.suggestedOrderQty?.toLocaleString() ?? '—'} <span className="text-[10px] text-white/30 font-normal">units</span></p>
                   </div>
                   <div>
-                    <p className="text-[10px] text-white/30 uppercase font-bold tracking-widest">Days Left</p>
-                    <p className="text-sm font-bold font-mono">{Math.round(item.daysInStock)}</p>
+                    <p className="text-[10px] text-white/30 uppercase font-bold tracking-widest">Days to Order</p>
+                    {(() => {
+                      const daysToOrder = Math.round(item.daysInStock - (item.sku?.orderTriggerDays ?? 90));
+                      return (
+                        <p className={clsx(
+                          "text-sm font-bold font-mono",
+                          daysToOrder <= 0 ? "text-critical" : "text-white"
+                        )}>
+                          {daysToOrder} <span className="text-[10px] text-white/30 font-normal">days</span>
+                        </p>
+                      );
+                    })()}
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-white/30 uppercase font-bold tracking-widest">30D Velocity</p>
+                    <p className="text-sm font-bold font-mono">{item.velocity30d?.toFixed(1) ?? '0'} <span className="text-[10px] text-white/30 font-normal">/day</span></p>
                   </div>
                 </div>
               </motion.div>
