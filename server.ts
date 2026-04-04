@@ -686,11 +686,46 @@ async function startServer() {
     }
   });
 
-  // Delete shipment
+  // Delete shipment — revert linked PO back to OPEN if no other shipments remain
   app.delete("/api/v1/shipments/:id", authenticate, async (req: any, res) => {
     const tenantId = req.user.tenantId;
     try {
-      await prisma.shipment.delete({ where: { id: req.params.id, tenantId } });
+      // Look up the shipment before deleting so we know the linked PO
+      const shipment = await prisma.shipment.findUnique({
+        where: { id: req.params.id, tenantId }
+      });
+      if (!shipment) {
+        return res.status(404).json({ success: false, error: 'Shipment not found' });
+      }
+
+      await prisma.shipment.delete({ where: { id: req.params.id } });
+
+      // If this shipment was linked to a PO, check remaining shipments for that PO
+      if (shipment.poId) {
+        const remainingShipments = await prisma.shipment.findMany({
+          where: { poId: shipment.poId }
+        });
+        if (remainingShipments.length === 0) {
+          // No shipments left — revert PO back to OPEN
+          await prisma.purchaseOrder.update({
+            where: { id: shipment.poId },
+            data: { status: 'OPEN' }
+          });
+        } else {
+          // If remaining shipments exist but none are received, revert PO to SHIPPED
+          const anyReceived = remainingShipments.some(s => s.received);
+          if (!anyReceived) {
+            const po = await prisma.purchaseOrder.findUnique({ where: { id: shipment.poId } });
+            if (po && po.status === 'RECEIVED') {
+              await prisma.purchaseOrder.update({
+                where: { id: shipment.poId },
+                data: { status: 'SHIPPED' }
+              });
+            }
+          }
+        }
+      }
+
       res.json({ success: true });
     } catch (err) {
       res.status(500).json({ success: false, error: 'Failed to delete shipment' });

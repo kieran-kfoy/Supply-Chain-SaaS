@@ -300,9 +300,82 @@ export default function Purchasing() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-6">
-          {/* Toggle buttons */}
+      {/* Reorder Queue — horizontal strip */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xl font-bold tracking-tight">Reorder Queue</h3>
+          <span className={clsx(
+            "text-[10px] font-bold px-2 py-0.5 rounded-full",
+            (reorderQueue?.length ?? 0) > 0 ? "bg-critical text-white" : "bg-white/10 text-white/50"
+          )}>
+            {reorderQueue?.length ?? 0}
+          </span>
+        </div>
+
+        {(reorderQueue?.length ?? 0) > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {reorderQueue?.map((item: any, i: number) => (
+              <motion.div
+                key={item.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05 }}
+                className="bg-bg-card border border-border-subtle p-4 rounded-xl space-y-3 hover:border-white/20 transition-all"
+              >
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="font-mono text-sm font-bold">{item.sku.skuCode}</p>
+                    <p className="text-[10px] text-white/40">{item.sku.productDescription}</p>
+                  </div>
+                  <AlertTriangle className={clsx(
+                    "w-4 h-4",
+                    item.reorderStatus === 'CRITICAL' ? 'text-critical' : 'text-reorder'
+                  )} />
+                </div>
+                <div className="grid grid-cols-4 gap-3 pt-2 border-t border-white/5">
+                  <div>
+                    <p className="text-[10px] text-white/30 uppercase font-bold tracking-widest">Suggested</p>
+                    <p className="text-sm font-bold font-mono">{item.suggestedOrderQty?.toLocaleString() ?? '—'} <span className="text-[10px] text-white/30 font-normal">units</span></p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-white/30 uppercase font-bold tracking-widest">On Order</p>
+                    <p className={clsx("text-sm font-bold font-mono", item.unitsOnOrder > 0 ? "text-blue-400" : "text-white/30")}>
+                      {item.unitsOnOrder > 0 ? item.unitsOnOrder.toLocaleString() : '—'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-white/30 uppercase font-bold tracking-widest">Days to Order</p>
+                    {(() => {
+                      const daysToOrder = Math.round(item.totalDaysOutstanding - (item.sku?.orderTriggerDays ?? 90));
+                      return (
+                        <p className={clsx(
+                          "text-sm font-bold font-mono",
+                          daysToOrder <= 0 ? "text-critical" : "text-white"
+                        )}>
+                          {daysToOrder}
+                        </p>
+                      );
+                    })()}
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-white/30 uppercase font-bold tracking-widest">30D Vel</p>
+                    <p className="text-sm font-bold font-mono">{item.velocity30d?.toFixed(1) ?? '0'} <span className="text-[10px] text-white/30 font-normal">/day</span></p>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        ) : (
+          <div className="bg-bg-card border border-border-subtle border-dashed p-6 rounded-xl text-center">
+            <CheckCircle2 className="w-6 h-6 text-healthy mx-auto mb-1 opacity-50" />
+            <p className="text-xs text-white/30 font-medium">Reorder queue is clear</p>
+          </div>
+        )}
+      </div>
+
+      {/* PO Table — full width */}
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
           <div className="flex gap-2">
             <button
               onClick={() => setView('open')}
@@ -328,8 +401,7 @@ export default function Purchasing() {
             </button>
           </div>
 
-          {/* Search bar */}
-          <div className="relative max-w-md">
+          <div className="relative max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
             <input
               type="text"
@@ -339,9 +411,10 @@ export default function Purchasing() {
               className="w-full bg-white/5 border border-border-subtle rounded-xl py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-white/10 transition-all"
             />
           </div>
+        </div>
 
-          {/* PO Table — Column order: PO #, Date Submitted, SKU, Quantity, Supplier, Status, Expected */}
-          <div className="bg-bg-card border border-border-subtle rounded-2xl overflow-hidden">
+        <div className="bg-bg-card border border-border-subtle rounded-2xl overflow-hidden">
+          <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-border-subtle">
@@ -420,74 +493,6 @@ export default function Purchasing() {
                 )}
               </tbody>
             </table>
-          </div>
-        </div>
-
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xl font-bold tracking-tight">Reorder Queue</h3>
-            <span className="bg-critical text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-              {reorderQueue?.length ?? 0}
-            </span>
-          </div>
-
-          <div className="space-y-4">
-            {reorderQueue?.map((item: any, i: number) => (
-              <motion.div
-                key={item.id}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.1 }}
-                className="bg-bg-card border border-border-subtle p-4 rounded-xl space-y-3 hover:border-white/20 transition-all cursor-pointer group"
-              >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="font-mono text-sm font-bold">{item.sku.skuCode}</p>
-                    <p className="text-[10px] text-white/40">{item.sku.productDescription}</p>
-                  </div>
-                  <AlertTriangle className={clsx(
-                    "w-4 h-4",
-                    item.reorderStatus === 'CRITICAL' ? 'text-critical' : 'text-reorder'
-                  )} />
-                </div>
-                <div className="grid grid-cols-4 gap-4 pt-2 border-t border-white/5">
-                  <div>
-                    <p className="text-[10px] text-white/30 uppercase font-bold tracking-widest">Suggested Order</p>
-                    <p className="text-sm font-bold font-mono">{item.suggestedOrderQty?.toLocaleString() ?? '—'} <span className="text-[10px] text-white/30 font-normal">units</span></p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-white/30 uppercase font-bold tracking-widest">On Order</p>
-                    <p className={clsx("text-sm font-bold font-mono", item.unitsOnOrder > 0 ? "text-blue-400" : "text-white/30")}>
-                      {item.unitsOnOrder > 0 ? item.unitsOnOrder.toLocaleString() : '—'} {item.unitsOnOrder > 0 && <span className="text-[10px] text-white/30 font-normal">units</span>}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-white/30 uppercase font-bold tracking-widest">Days to Order</p>
-                    {(() => {
-                      const daysToOrder = Math.round(item.totalDaysOutstanding - (item.sku?.orderTriggerDays ?? 90));
-                      return (
-                        <p className={clsx(
-                          "text-sm font-bold font-mono",
-                          daysToOrder <= 0 ? "text-critical" : "text-white"
-                        )}>
-                          {daysToOrder} <span className="text-[10px] text-white/30 font-normal">days</span>
-                        </p>
-                      );
-                    })()}
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-white/30 uppercase font-bold tracking-widest">30D Velocity</p>
-                    <p className="text-sm font-bold font-mono">{item.velocity30d?.toFixed(1) ?? '0'} <span className="text-[10px] text-white/30 font-normal">/day</span></p>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-            {(!reorderQueue || reorderQueue.length === 0) && (
-              <div className="bg-bg-card border border-border-subtle border-dashed p-8 rounded-xl text-center">
-                <CheckCircle2 className="w-8 h-8 text-healthy mx-auto mb-2 opacity-50" />
-                <p className="text-xs text-white/30 font-medium">Reorder queue is clear</p>
-              </div>
-            )}
           </div>
         </div>
       </div>
