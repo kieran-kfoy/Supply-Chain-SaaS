@@ -7,7 +7,7 @@ import { AlertTriangle, CheckCircle2, Clock, Plus, Pencil, Trash2, X, Loader2, A
 import { motion } from 'motion/react';
 import { format } from 'date-fns';
 import { clsx } from 'clsx';
-import CreatePoModal from '../components/CreatePoModal';
+import CreatePoModal, { PrefillItem } from '../components/CreatePoModal';
 import { generatePoPdf } from '../utils/generatePoPdf';
 
 const PO_STATUSES = ['OPEN', 'IN PRODUCTION', 'SHIPPED', 'RECEIVED', 'COMPLETE'];
@@ -155,6 +155,8 @@ export default function Purchasing() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [isModalOpen, setIsModalOpen] = React.useState(false);
+  const [prefillItems, setPrefillItems] = React.useState<PrefillItem[]>([]);
+  const [selectedReorderIds, setSelectedReorderIds] = React.useState<Set<string>>(new Set());
   const [editingPo, setEditingPo] = React.useState<any>(null);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
   const [view, setView] = React.useState<'open' | 'closed'>('open');
@@ -268,7 +270,10 @@ export default function Purchasing() {
             Export CSV
           </button>
           <button
-            onClick={() => setIsModalOpen(true)}
+            onClick={() => {
+              setPrefillItems([]);
+              setIsModalOpen(true);
+            }}
             className="bg-white text-black px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-white/90 transition-all flex items-center gap-2"
           >
             <Plus size={18} />
@@ -277,7 +282,15 @@ export default function Purchasing() {
         </div>
       </header>
 
-      <CreatePoModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+      <CreatePoModal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setPrefillItems([]);
+          setSelectedReorderIds(new Set());
+        }}
+        prefillItems={prefillItems}
+      />
       {editingPo && <EditPoModal po={editingPo} onClose={() => setEditingPo(null)} />}
 
       {/* Delete confirm dialog */}
@@ -303,13 +316,53 @@ export default function Purchasing() {
       {/* Reorder Queue — horizontal strip */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-xl font-bold tracking-tight">Reorder Queue</h3>
-          <span className={clsx(
-            "text-[10px] font-bold px-2 py-0.5 rounded-full",
-            (reorderQueue?.length ?? 0) > 0 ? "bg-critical text-white" : "bg-white/10 text-white/50"
-          )}>
-            {reorderQueue?.length ?? 0}
-          </span>
+          <div className="flex items-center gap-3">
+            <h3 className="text-xl font-bold tracking-tight">Reorder Queue</h3>
+            <span className={clsx(
+              "text-[10px] font-bold px-2 py-0.5 rounded-full",
+              (reorderQueue?.length ?? 0) > 0 ? "bg-critical text-white" : "bg-white/10 text-white/50"
+            )}>
+              {reorderQueue?.length ?? 0}
+            </span>
+          </div>
+          {(reorderQueue?.length ?? 0) > 0 && (
+            <div className="flex items-center gap-3">
+              {selectedReorderIds.size > 0 && (
+                <span className="text-xs text-white/40">{selectedReorderIds.size} selected</span>
+              )}
+              <button
+                onClick={() => {
+                  if (selectedReorderIds.size === (reorderQueue?.length ?? 0)) {
+                    setSelectedReorderIds(new Set());
+                  } else {
+                    setSelectedReorderIds(new Set(reorderQueue?.map((item: any) => item.id) ?? []));
+                  }
+                }}
+                className="text-xs font-medium text-white/50 hover:text-white px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-border-subtle transition-all"
+              >
+                {selectedReorderIds.size === (reorderQueue?.length ?? 0) ? 'Deselect All' : 'Select All'}
+              </button>
+              {selectedReorderIds.size > 0 && (
+                <button
+                  onClick={() => {
+                    const items: PrefillItem[] = reorderQueue
+                      ?.filter((item: any) => selectedReorderIds.has(item.id))
+                      .map((item: any) => ({
+                        skuId: item.skuId,
+                        skuCode: item.sku.skuCode,
+                        suggestedQty: item.suggestedOrderQty ?? 0,
+                      })) ?? [];
+                    setPrefillItems(items);
+                    setIsModalOpen(true);
+                  }}
+                  className="bg-white text-black px-4 py-1.5 rounded-lg font-bold text-xs hover:bg-white/90 transition-all flex items-center gap-1.5"
+                >
+                  <Plus size={14} />
+                  Create PO from Selected
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {(reorderQueue?.length ?? 0) > 0 ? (
@@ -320,12 +373,39 @@ export default function Purchasing() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.05 }}
-                className="bg-bg-card border border-border-subtle p-4 rounded-xl space-y-3 hover:border-white/20 transition-all"
+                className={clsx(
+                  "bg-bg-card border p-4 rounded-xl space-y-3 transition-all cursor-pointer",
+                  selectedReorderIds.has(item.id)
+                    ? "border-white/40 bg-white/[0.04]"
+                    : "border-border-subtle hover:border-white/20"
+                )}
+                onClick={() => {
+                  setSelectedReorderIds(prev => {
+                    const next = new Set(prev);
+                    if (next.has(item.id)) next.delete(item.id);
+                    else next.add(item.id);
+                    return next;
+                  });
+                }}
               >
                 <div className="flex items-start justify-between">
-                  <div>
-                    <p className="font-mono text-sm font-bold">{item.sku.skuCode}</p>
-                    <p className="text-[10px] text-white/40">{item.sku.productDescription}</p>
+                  <div className="flex items-start gap-3">
+                    <div className={clsx(
+                      "w-4 h-4 mt-0.5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all",
+                      selectedReorderIds.has(item.id)
+                        ? "bg-white border-white"
+                        : "border-white/20 hover:border-white/40"
+                    )}>
+                      {selectedReorderIds.has(item.id) && (
+                        <svg className="w-3 h-3 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-mono text-sm font-bold">{item.sku.skuCode}</p>
+                      <p className="text-[10px] text-white/40">{item.sku.productDescription}</p>
+                    </div>
                   </div>
                   <AlertTriangle className={clsx(
                     "w-4 h-4",

@@ -9,18 +9,42 @@ interface LineItem {
   orderQuantity: string;
 }
 
+export interface PrefillItem {
+  skuId: string;
+  skuCode: string;
+  suggestedQty: number;
+}
+
 interface CreatePoModalProps {
   isOpen: boolean;
   onClose: () => void;
+  prefillItems?: PrefillItem[];
 }
 
-export default function CreatePoModal({ isOpen, onClose }: CreatePoModalProps) {
+export default function CreatePoModal({ isOpen, onClose, prefillItems }: CreatePoModalProps) {
   const token = useAuthStore((state) => state.token);
   const queryClient = useQueryClient();
   const [poNumber, setPoNumber] = React.useState('');
   const [supplierId, setSupplierId] = React.useState('');
   const [notes, setNotes] = React.useState('');
   const [lineItems, setLineItems] = React.useState<LineItem[]>([{ skuId: '', orderQuantity: '' }]);
+  const [hasAppliedPrefill, setHasAppliedPrefill] = React.useState(false);
+
+  // Auto-populate line items from reorder queue selections
+  React.useEffect(() => {
+    if (isOpen && prefillItems && prefillItems.length > 0 && !hasAppliedPrefill) {
+      setLineItems(
+        prefillItems.map(item => ({
+          skuId: item.skuId,
+          orderQuantity: String(item.suggestedQty),
+        }))
+      );
+      setHasAppliedPrefill(true);
+    }
+    if (!isOpen) {
+      setHasAppliedPrefill(false);
+    }
+  }, [isOpen, prefillItems, hasAppliedPrefill]);
 
   const { data: skus } = useQuery({
     queryKey: ['inventory-skus'],
