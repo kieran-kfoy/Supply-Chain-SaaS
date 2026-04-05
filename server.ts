@@ -461,10 +461,11 @@ async function startServer() {
       orderBy: { snapshotDate: 'desc' }
     });
 
-    // Deduplicate: keep only the latest snapshot per SKU
+    // Deduplicate: keep only the latest snapshot per SKU, exclude bundles
     const seen = new Set<string>();
     const latestSnapshots = allSnapshots.filter(snap => {
       if (seen.has(snap.skuId)) return false;
+      if (snap.sku.isBundle) return false;
       seen.add(snap.skuId);
       return true;
     });

@@ -38,8 +38,11 @@ router.get('/install', (req: any, res) => {
     try {
       const decoded = jwt.verify(token as string, process.env.JWT_SECRET!) as any;
       tenantId = decoded.tenantId;
-    } catch {
-      return res.status(401).json({ success: false, error: 'Invalid token' });
+    } catch (err: any) {
+      const msg = err?.name === 'TokenExpiredError'
+        ? 'Your session has expired. Please log out and log back in, then try connecting again.'
+        : 'Invalid token. Please log out and log back in, then try connecting again.';
+      return res.status(401).json({ success: false, error: msg });
     }
   }
 
@@ -512,6 +515,7 @@ router.post('/sync', async (req: any, res) => {
 
     for (const listing of trackedListings) {
       const sku = listing.sku;
+      if (sku.isBundle) continue; // Skip bundles — they don't get inventory snapshots
       const onHand = stockMap.get(sku.id) ?? 0;
       const sales = salesMap.get(listing.platformVariantId || '') || { sold7d: 0, sold30d: 0, sold90d: 0 };
 
