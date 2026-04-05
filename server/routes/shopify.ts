@@ -589,6 +589,34 @@ router.post('/sync', async (req: any, res) => {
       snapshotsCreated++;
     }
 
+    // ── Step 6: Deactivate SKUs no longer in Shopify ──────────────────────────
+    // Collect all variant IDs currently in Shopify
+    const shopifyVariantIds = new Set<string>();
+    for (const product of products) {
+      for (const variant of product.variants) {
+        shopifyVariantIds.add(String(variant.id));
+      }
+    }
+
+    // Find channel listings for variants that no longer exist in Shopify
+    const allListings = await prisma.channelListing.findMany({
+      where: { tenantId, platform: 'shopify' },
+    });
+
+    let deactivated = 0;
+    for (const listing of allListings) {
+      if (!shopifyVariantIds.has(listing.platformVariantId)) {
+        // This variant was removed from Shopify — deactivate the SKU
+        await prisma.sku.update({
+          where: { id: listing.skuId },
+          data: { isActive: false },
+        });
+        // Remove the orphaned channel listing
+        await prisma.channelListing.delete({ where: { id: listing.id } });
+        deactivated++;
+      }
+    }
+
     await prisma.integration.update({
       where: { id: integration.id },
       data: { lastSyncAt: new Date(), syncStatus: 'synced', errorLog: null },
@@ -601,8 +629,9 @@ router.post('/sync', async (req: any, res) => {
         skusCreated: created,
         skusUpdated: updated,
         skusSkipped: skipped,
+        skusDeactivated: deactivated,
         snapshotsCreated,
-        message: `Sync complete. ${created} new SKUs, ${updated} updated, ${snapshotsCreated} inventory snapshots created.`,
+        message: `Sync complete. ${created} new, ${updated} updated, ${deactivated} deactivated, ${snapshotsCreated} snapshots.`,
       },
     });
 
